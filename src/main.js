@@ -11,6 +11,8 @@ import { Person, Broom, Spray, Car } from './hazards.js';
 import { Cat } from './cat.js';
 import { Foods } from './foods.js';
 import { Sfx } from './sfx.js';
+import { setupInstall } from './install.js';
+setupInstall();
 
 const isTouch = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 if (isTouch) document.body.classList.add('touch');
@@ -605,6 +607,7 @@ function showLine(l) {
   // gibberish voice for the speaker (or sobbing), and everyone's face for this line
   const voice = l.who === 'Anak-anak' ? 'kids' : l.who === 'Mak' ? 'mak' : 'ayah';
   const dur = Math.min(2.4, 0.5 + l.ms.length * 0.045);
+  sfx.voiceCut();
   if (l.sob) { sfx.sob(voice, 2.4); if (voice !== 'kids' && cine.kind === 'death') sfx.sob('kids', 2.2); }
   else sfx.babble(voice, dur);
   talkT = dur;
@@ -1669,7 +1672,7 @@ window.addEventListener('resize', () => {
 // __game.simulate(seconds) fast-forwards the game logic at 60 fps (handy for testing).
 let simTime = 0;
 window.__game = {
-  game, roach, person, cat, broom, spray, car, foods, crumbs, cam, keys, world,
+  game, roach, person, cat, broom, spray, car, foods, crumbs, cam, keys, world, sfx,
   // run the full state machine (cutscenes etc.) for some seconds
   run(seconds) {
     for (let i = 0; i < Math.round(seconds * 60); i++) { simTime += 1 / 60; tick(1 / 60, simTime); }

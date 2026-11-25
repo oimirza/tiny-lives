@@ -11,7 +11,19 @@ export class Sfx {
       this.ctx = ctx;
       this.master = ctx.createGain();
       this.master.gain.value = 0.6;
-      this.master.connect(ctx.destination);
+      // Limiter: when many sounds pile up (crash + scream + sobbing) they used to add up past full scale and crackle
+      const lim = ctx.createDynamicsCompressor();
+      lim.threshold.value = -12;
+      lim.knee.value = 6;
+      lim.ratio.value = 12;
+      lim.attack.value = 0.003;
+      lim.release.value = 0.2;
+      this.master.connect(lim).connect(ctx.destination);
+      // Phones suspend audio when the app is backgrounded or a call comes in: wake it up again
+      const wake = () => { if (ctx.state !== 'running') ctx.resume?.().catch(() => {}); };
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
+      window.addEventListener('pointerdown', wake, true);
+      window.addEventListener('keydown', wake, true);
       const len = ctx.sampleRate * 2;
       this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
       const d = this.noiseBuf.getChannelData(0);
@@ -78,14 +90,16 @@ export class Sfx {
     o.frequency.setValueAtTime(freq, t);
     if (freqEnd) o.frequency.exponentialRampToValueAtTime(freqEnd, t + dur);
     const g = c.createGain();
-    g.gain.setValueAtTime(gain, t);
+    // tiny fade-in so tones don't start with a click
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + Math.min(0.008, dur * 0.2));
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     o.connect(g).connect(this.master);
     o.start(t);
     o.stop(t + dur + 0.02);
   }
 
-  noise(dur, { type = 'bandpass', freq = 1000, freqEnd = null, q = 1, gain = 0.3, attack = 0.005, delay = 0 } = {}) {
+  noise(dur, { type = 'bandpass', freq = 1000, freqEnd = null, q = 1, gain = 0.3, attack = 0.005, delay = 0, dest = null } = {}) {
     const c = this.ctx;
     if (!c) return;
     const t = c.currentTime + delay;
@@ -101,7 +115,7 @@ export class Sfx {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(gain, t + attack);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    s.connect(f).connect(g).connect(this.master);
+    s.connect(f).connect(g).connect(dest || this.master);
     s.start(t, Math.random());
     s.stop(t + dur + 0.05);
   }
@@ -161,14 +175,28 @@ export class Sfx {
 
   // Sims-style chipmunk gibberish: a quick string of random "syllables", each a pitched blip shaped by
   // vowel formants (a/e/i/o/u), sped up and pitched high like a chipmunk.
+  // Cutscene voices (babble + sobbing) share one bus, so a new line or skipping the scene fades the old ones out
+  // instead of letting them pile up on top of each other and play on into the game-over screen.
+  voiceCut() {
+    const c = this.ctx;
+    if (!c || !this._voice) return;
+    const old = this._voice;
+    this._voice = null;
+    try { old.gain.setTargetAtTime(0, c.currentTime, 0.03); } catch { /* ignore */ }
+    setTimeout(() => { try { old.disconnect(); } catch { /* ignore */ } }, 400);
+  }
+  voiceBus() {
+    if (!this._voice) {
+      this._voice = this.ctx.createGain();
+      this._voice.connect(this.master);
+    }
+    return this._voice;
+  }
+
   babble(voice = 'mak', dur = 1.5) {
     const c = this.ctx;
     if (!c) return;
-    if (this._babbleOut) { try { this._babbleOut.gain.setTargetAtTime(0, c.currentTime, 0.02); } catch { /* ignore */ } }
-    const out = c.createGain();
-    out.gain.value = 1;
-    out.connect(this.master);
-    this._babbleOut = out;
+    const out = this.voiceBus();
     const base = { kids: 1150, mak: 780, ayah: 520 }[voice] || 700;
     const vowels = [[800, 1200], [450, 2100], [320, 2700], [520, 900], [380, 800]];
     let t = c.currentTime + 0.03;
@@ -206,6 +234,7 @@ export class Sfx {
     const c = this.ctx;
     if (!c) return;
     const base = { kids: 1250, mak: 820, ayah: 560 }[voice] || 800;
+    const out = this.voiceBus();
     let t = c.currentTime + 0.02;
     const end = t + dur;
     while (t < end) {
@@ -228,12 +257,12 @@ export class Sfx {
       bp.type = 'bandpass';
       bp.frequency.value = base * 1.4;
       bp.Q.value = 1.5;
-      o.connect(bp).connect(g).connect(this.master);
+      o.connect(bp).connect(g).connect(out);
       o.start(t); vib.start(t);
       o.stop(t + len + 0.02); vib.stop(t + len + 0.02);
       t += len + 0.06;
       // sniff
-      this.noise(0.08, { type: 'highpass', freq: 3000, gain: 0.05, delay: t - c.currentTime });
+      this.noise(0.08, { type: 'highpass', freq: 3000, gain: 0.05, delay: t - c.currentTime, dest: out });
       t += 0.12 + Math.random() * 0.1;
     }
   }
@@ -307,5 +336,6 @@ export class Sfx {
   silence() {
     this.setWings(0);
     this.setCar(0, 0);
+    this.voiceCut();
   }
 }

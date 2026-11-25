@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Tiny Lives home-screen icon (source). Rendered to PNG by icon/render.ps1 -->
+  <defs>
+    <linearGradient id="iBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a46cf7" />
+      <stop offset="0.55" stop-color="#6a2bb8" />
+      <stop offset="1" stop-color="#3c128f" />
+    </linearGradient>
+    <radialGradient id="iGlow" cx="0.5" cy="0.42" r="0.55">
+      <stop offset="0" stop-color="#ffe9a8" stop-opacity="0.55" />
+      <stop offset="0.6" stop-color="#ffffff" stop-opacity="0.06" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="iFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff6b0" />
+      <stop offset="0.45" stop-color="#ffcf3a" />
+      <stop offset="1" stop-color="#ff8a1f" />
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#iBg)" />
+  <rect width="512" height="512" fill="url(#iGlow)" />
+
+  <!-- floor tiles fading in at the bottom -->
+  <g stroke="#ffffff" stroke-opacity="0.08" stroke-width="3">
+    <path d="M0 430 H512 M0 470 H512 M60 512 L150 410 M200 512 L230 410 M312 512 L282 410 M452 512 L362 410" />
+  </g>
+
+  <!-- sparkles -->
+  <g fill="#fff3c4">
+    <path d="M78 92 l6 16 16 6 -16 6 -6 16 -6 -16 -16 -6 16 -6z" opacity="0.85" />
+    <path d="M438 128 l4 11 11 4 -11 4 -4 11 -4 -11 -11 -4 11 -4z" opacity="0.7" />
+    <path d="M430 398 l5 13 13 5 -13 5 -5 13 -5 -13 -13 -5 13 -5z" opacity="0.6" />
+    <circle cx="104" cy="404" r="5" opacity="0.5" />
+    <circle cx="400" cy="66" r="4" opacity="0.55" />
+  </g>
+
+  <g id="content">
+    <g font-family="Fredoka, 'Baloo 2', system-ui, sans-serif" font-weight="700" font-size="150" text-anchor="middle" letter-spacing="-3">
+      <!-- dark shadow layer -->
+      <text x="256" y="252" fill="#2a0a52" stroke="#2a0a52" stroke-width="22" stroke-linejoin="round">Tıny</text>
+      <text x="256" y="414" fill="#2a0a52" stroke="#2a0a52" stroke-width="22" stroke-linejoin="round">Lıves</text>
+      <!-- candy fill -->
+      <text x="256" y="240" fill="url(#iFill)" stroke="#4a1466" stroke-width="18" stroke-linejoin="round" paint-order="stroke fill">Tıny</text>
+      <text x="256" y="402" fill="url(#iFill)" stroke="#4a1466" stroke-width="18" stroke-linejoin="round" paint-order="stroke fill">Lıves</text>
+    </g>
+    <!-- crumb: dot of the i in Tiny -->
+    <g id="iCrumb" transform="translate(CRUMB_X 128) rotate(-12) scale(1.35)">
+      <path d="M-15 -4 Q-14 -15 -2 -15 Q12 -16 14 -5 Q16 8 3 11 Q-12 13 -15 -4 Z" fill="#f2c27b" stroke="#4a1466" stroke-width="5" stroke-linejoin="round" />
+      <circle cx="-4" cy="-6" r="2" fill="#c98a3e" />
+      <circle cx="5" cy="1" r="2" fill="#c98a3e" />
+      <circle cx="-6" cy="3" r="1.6" fill="#c98a3e" />
+    </g>
+    <!-- heart: dot of the i in Lives -->
+    <g id="iHeart" transform="translate(HEART_X 290) scale(1.45)">
+      <path d="M0 12 C-20 -1 -17 -17 -7 -17 C-3 -17 0 -14 0 -10 C0 -14 3 -17 7 -17 C17 -17 20 -1 0 12 Z" fill="#ff4f7b" stroke="#4a1466" stroke-width="5" stroke-linejoin="round" />
+      <ellipse cx="-7" cy="-9" rx="3.5" ry="2.2" fill="#ffffff" opacity="0.8" />
+    </g>
+  </g>
+</svg>
