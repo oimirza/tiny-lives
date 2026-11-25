@@ -5,10 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <title>Aku Adalah Seekor...</title>
+    <title>Tiny Lives</title>
+    <meta name="theme-color" content="#6a2bb8" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet" />
     <style>
       /* ================= Candy theme ================= */
       :root {
@@ -101,6 +104,7 @@
       .overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; overflow-y: auto; z-index: 10;
         background: radial-gradient(circle at 30% 20%, rgba(255,140,220,0.55), transparent 50%), radial-gradient(circle at 80% 80%, rgba(80,200,255,0.5), transparent 50%), rgba(40,12,90,0.72);
         backdrop-filter: blur(4px); }
+      #title .panel { padding-top: 18px; }
       .panel { position: relative; max-width: 580px; width: 100%; padding: 46px 28px 26px; border-radius: 28px; text-align: center;
         background: linear-gradient(180deg, #a16bff 0%, var(--grape) 40%, #5420c2 100%);
         border: 4px solid rgba(255,255,255,0.85); box-shadow: 0 10px 0 var(--grape-dark), 0 20px 40px rgba(0,0,0,0.45), inset 0 6px 16px rgba(255,255,255,0.4); margin-top: 26px; }
@@ -175,6 +179,15 @@
       /* ================= Title / select / map / cutscene / countdown ================= */
       .titleSmall { font-size: 26px; font-weight: 700; color: #fff; -webkit-text-stroke: 5px var(--ink); paint-order: stroke fill; margin-top: 4px; }
       .bigTitle { font-size: 76px; }
+      .logo { margin: 0 auto -6px; width: min(100%, 520px); line-height: 0; }
+      .logo svg { width: 100%; height: auto; overflow: visible; filter: drop-shadow(0 6px 10px rgba(40, 0, 70, 0.35)); }
+      .logo #tlRoach { animation: tlWiggle 2.6s ease-in-out infinite; transform-box: fill-box; }
+      .logo #tlHeart { animation: tlBeat 1.3s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+      @keyframes tlBeat { 0%, 60%, 100% { scale: 1; } 30% { scale: 1.18; } }
+      @keyframes tlWiggle { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
+      @media (prefers-reduced-motion: reduce) { .logo #tlRoach, .logo #tlHeart { animation: none; } }
+      .tagline { font-family: Caveat, 'Segoe Print', cursive; font-weight: 700; font-size: 30px; color: #fff; margin: 0 0 4px; letter-spacing: 0.5px;
+        text-shadow: 0 2px 0 var(--ink), 0 0 12px rgba(255, 214, 120, 0.55); }
       .dots { display: inline-block; animation: dots 1.4s steps(4) infinite; overflow: hidden; vertical-align: bottom; width: 1.1em; text-align: left; }
       @keyframes dots { 0% { width: 0; } 100% { width: 1.1em; } }
       .panel.wide { max-width: 760px; }
@@ -318,6 +331,13 @@
         .ribbon { font-size: 18px; padding: 7px 20px; top: -20px; }
         .titleSmall { font-size: 18px; }
         .bigTitle, h1 { font-size: 44px; }
+        .logo { width: min(100%, 330px); }
+        .tagline { font-size: 21px; }
+        #title.overlay { padding-top: 10px; }
+        #title .panel { padding-top: 8px; }
+        #title .goals { margin: 0 0 2px; }
+        #title .jelly { margin-top: 6px; }
+        #title .panel > div:last-child { display: inline-block; margin-left: 8px; vertical-align: bottom; }
         .tag { font-size: 13px; margin: 4px 0 8px; }
         .cards { grid-template-columns: 1fr 1fr; gap: 6px; }
         .card { font-size: 11px; padding: 6px 8px; }
@@ -400,9 +420,65 @@
     <!-- ================= Title (one page, even on a phone) ================= -->
     <div id="title" class="overlay">
       <div class="panel">
-        <div class="ribbon">🪳 A Family Story</div>
-        <div class="titleSmall">Aku Adalah</div>
-        <h1 class="bigTitle">Seekor<span class="dots">...</span></h1>
+        <h1 class="logo" aria-label="Tiny Lives">
+          <svg viewBox="0 0 640 230" role="img" aria-hidden="true">
+            <defs>
+              <linearGradient id="tlFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#fff6b0" />
+                <stop offset="0.45" stop-color="#ffcf3a" />
+                <stop offset="1" stop-color="#ff8a1f" />
+              </linearGradient>
+              <linearGradient id="tlShell" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#c9773a" />
+                <stop offset="1" stop-color="#7a3c14" />
+              </linearGradient>
+              <radialGradient id="tlGlow" cx="0.5" cy="0.5" r="0.5">
+                <stop offset="0" stop-color="#ffffff" stop-opacity="0.35" />
+                <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+              </radialGradient>
+            </defs>
+            <ellipse cx="320" cy="135" rx="320" ry="95" fill="url(#tlGlow)" />
+            <g class="tlWord" font-family="Fredoka, 'Baloo 2', system-ui, sans-serif" font-weight="700" font-size="132" text-anchor="middle" letter-spacing="-2">
+              <text x="320" y="178" fill="#4a1466" stroke="#4a1466" stroke-width="18" stroke-linejoin="round">Tıny Lıves</text>
+              <text id="tlText" x="320" y="168" fill="url(#tlFill)" stroke="#4a1466" stroke-width="16" stroke-linejoin="round" paint-order="stroke fill">Tıny Lıves</text>
+              <text x="320" y="168" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="3" stroke-linejoin="round" transform="translate(0 -3)" style="mix-blend-mode: soft-light">Tıny Lıves</text>
+            </g>
+            <!-- crumb: the dot of the first i -->
+            <g id="tlCrumb" transform="translate(124 79) rotate(-12)">
+              <path d="M-15 -4 Q-14 -15 -2 -15 Q12 -16 14 -5 Q16 8 3 11 Q-12 13 -15 -4 Z" fill="#f2c27b" stroke="#4a1466" stroke-width="5" stroke-linejoin="round" />
+              <circle cx="-4" cy="-6" r="2" fill="#c98a3e" />
+              <circle cx="5" cy="1" r="2" fill="#c98a3e" />
+              <circle cx="-6" cy="3" r="1.6" fill="#c98a3e" />
+            </g>
+            <!-- heart: the dot of the second i -->
+            <g id="tlHeart" transform="translate(399 80)">
+              <path d="M0 12 C-20 -1 -17 -17 -7 -17 C-3 -17 0 -14 0 -10 C0 -14 3 -17 7 -17 C17 -17 20 -1 0 12 Z" fill="#ff4f7b" stroke="#4a1466" stroke-width="5" stroke-linejoin="round" />
+              <ellipse cx="-7" cy="-9" rx="3.5" ry="2.2" fill="#ffffff" opacity="0.8" />
+            </g>
+            <!-- Lipas climbing the L -->
+            <g id="tlRoach" transform="translate(304 116) rotate(-16) scale(0.9)">
+              <g stroke="#4a1466" stroke-width="3.5" stroke-linecap="round" fill="none">
+                <path d="M-6 -16 Q-14 -40 -30 -50" />
+                <path d="M6 -16 Q14 -40 32 -48" />
+                <path d="M-11 -2 L-24 -10 L-30 -2" />
+                <path d="M-12 8 L-26 8 L-32 16" />
+                <path d="M-10 18 L-22 28 L-24 38" />
+                <path d="M11 -2 L24 -10 L30 -2" />
+                <path d="M12 8 L26 8 L32 16" />
+                <path d="M10 18 L22 28 L24 38" />
+              </g>
+              <ellipse cx="0" cy="10" rx="15" ry="23" fill="url(#tlShell)" stroke="#4a1466" stroke-width="4.5" />
+              <path d="M0 -8 L0 32" stroke="#4a1466" stroke-width="2.5" opacity="0.6" />
+              <ellipse cx="-5" cy="2" rx="3.5" ry="9" fill="#ffffff" opacity="0.35" />
+              <ellipse cx="0" cy="-15" rx="11" ry="8" fill="#5a2a12" stroke="#4a1466" stroke-width="4" />
+              <circle cx="-4.5" cy="-17" r="3.6" fill="#ffffff" />
+              <circle cx="4.5" cy="-17" r="3.6" fill="#ffffff" />
+              <circle cx="-4" cy="-18" r="1.8" fill="#1b0d26" />
+              <circle cx="5" cy="-18" r="1.8" fill="#1b0d26" />
+            </g>
+          </svg>
+        </h1>
+        <p class="tagline">Andai esok masih milik kita..</p>
         <p class="tag">A dad has to feed his family. Everyone in the house wants him dead.</p>
         <div class="goals">
           <div class="goal"><span>🍞</span>Eat every crumb</div>

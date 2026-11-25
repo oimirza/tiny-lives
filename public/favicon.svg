@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Tiny Lives app icon: Lipas on a candy-purple tile, holding a heart -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9b5cf0" />
+      <stop offset="1" stop-color="#5a1e9e" />
+    </linearGradient>
+    <linearGradient id="shell" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d4843f" />
+      <stop offset="1" stop-color="#7a3c14" />
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="url(#bg)" stroke="#4a1466" stroke-width="3" />
+  <g stroke="#2a0b3d" stroke-width="2.2" stroke-linecap="round" fill="none">
+    <path d="M28 21 Q24 11 16 8" />
+    <path d="M36 21 Q40 11 48 8" />
+    <path d="M24 30 L16 26 L13 31" />
+    <path d="M24 37 L15 38 L12 43" />
+    <path d="M25 44 L18 51" />
+    <path d="M40 30 L48 26 L51 31" />
+    <path d="M40 37 L49 38 L52 43" />
+    <path d="M39 44 L46 51" />
+  </g>
+  <ellipse cx="32" cy="38" rx="9.5" ry="14" fill="url(#shell)" stroke="#2a0b3d" stroke-width="2.5" />
+  <ellipse cx="29" cy="33" rx="2.2" ry="5.5" fill="#fff" opacity="0.35" />
+  <ellipse cx="32" cy="24" rx="7" ry="5.2" fill="#5a2a12" stroke="#2a0b3d" stroke-width="2.2" />
+  <circle cx="29.2" cy="23" r="2.3" fill="#fff" />
+  <circle cx="34.8" cy="23" r="2.3" fill="#fff" />
+  <circle cx="29.5" cy="22.6" r="1.1" fill="#1b0d26" />
+  <circle cx="35.1" cy="22.6" r="1.1" fill="#1b0d26" />
+  <path d="M50 18 C42 12 43 6 47 6 C49 6 50 7.5 50 9 C50 7.5 51 6 53 6 C57 6 58 12 50 18 Z" fill="#ff4f7b" stroke="#4a1466" stroke-width="1.8" stroke-linejoin="round" />
+</svg>
