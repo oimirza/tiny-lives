@@ -418,10 +418,9 @@ const game = {
   deathTimer: 0,
   cause: '',
   won: false,
-  warn(text) {
-    ui.warn.textContent = text;
-    ui.warn.classList.add('show');
-    warnTimer = 1.4;
+  // Alerts go to the small message log on the left (no more big words over the middle of the screen)
+  warn(text, kind) {
+    say(text, kind || (/gave up|lost you|lost interest/i.test(text) ? 'good' : /view$/i.test(text) ? 'info' : 'danger'));
   },
   shake(a) { this.shakeAmt = Math.max(this.shakeAmt, a); },
   spot() { this.spotted++; },
@@ -463,6 +462,101 @@ world.onCrash = (p) => {
   if (game.state === 'playing') game.warn(p.name === 'TV' ? 'CRASH! The cat broke the TV!' : `CRASH! The cat knocked over the ${p.name}!`);
 };
 
+// ---------------------------------------------------------------- Message log (left side, chat-history style)
+// Small lines that stay on screen: newest at the bottom, older ones fade, repeats are merged ("×3").
+const feedEl = $('feed');
+const FEED_MAX = isTouch ? 3 : 6;
+const FEED_ICON = { danger: '⚠️', tip: '💡', good: '✨', brief: '📍', info: '•' };
+const EAT_KEY = isTouch ? 'hold <b>EAT</b>' : 'hold <b>E</b>';
+let feedSeen = new Set();
+let briefQ = [];
+function say(html, kind = 'info') {
+  const now = performance.now();
+  const last = feedEl.lastElementChild;
+  if (last && last.dataset.text === html && now - last._t < 8000) {
+    last._n = (last._n || 1) + 1;
+    last.querySelector('.x').textContent = `×${last._n}`;
+    last._t = now;
+    last.classList.remove('old', 'bump');
+    void last.offsetWidth;
+    last.classList.add('bump');
+    return;
+  }
+  const el = document.createElement('div');
+  el.className = `msg ${kind}`;
+  el.dataset.text = html;
+  el._t = now;
+  el.innerHTML = `<i>${FEED_ICON[kind] || '•'}</i><span>${html}<span class="x"></span></span>`;
+  feedEl.appendChild(el);
+  while (feedEl.children.length > FEED_MAX) feedEl.firstElementChild.remove();
+}
+// a tip that shows only once per level
+function hintOnce(key, html, kind = 'tip') {
+  if (feedSeen.has(key)) return;
+  feedSeen.add(key);
+  say(html, kind);
+}
+function clearFeed() { feedEl.innerHTML = ''; feedSeen = new Set(); briefQ = []; }
+
+// What's new / what to watch out for, told a line at a time when each level starts
+const BRIEF = [
+  [
+    'Morning in the living room. Eat all <b>10 crumbs</b>, then go back home to the nest.',
+    '<b>Oyen</b> the cat is asleep on the armchair. Don\'t climb on him!',
+    '<b>Glue traps</b> and <b>ubat gegat</b> are on the floor. Go around them.',
+    `Snacks heal you: ${EAT_KEY} next to one. Munching is noisy though.`,
+  ],
+  [
+    'Evening. <b>14 crumbs</b>, and some are hidden up high.',
+    '<b>Oyen</b> is awake now, but lazy. If he sniffs you out, hide.',
+    'One more <b>glue trap</b> than this morning. Watch the floor.',
+  ],
+  [
+    'Night. The lights are low and <b>he fell asleep</b> in front of the TV.',
+    'Don\'t crawl on him or make noise near his head, or he\'ll wake up.',
+    '<b>Oyen</b> is prowling in the dark, and the <b>toy car</b> is on.',
+    '<b>5 glue traps</b> now. They\'re hard to see at night.',
+  ],
+  [
+    'The <b>bedroom</b>. He can\'t sleep and keeps walking around.',
+    '<b>Oyen</b> is angry: he chases far and fast. Stay high or hidden.',
+    '<b>7 glue traps</b> and <b>5 ubat gegat</b>. Use the furniture tops.',
+    'The gap <b>under the bed</b> is a good place to hide.',
+  ],
+  [
+    '<b>Toilet & shower</b>. Open tiles, very few places to hide.',
+    '<b>10 glue traps</b>! Plan your path with the minimap.',
+    'He\'s angry and fast, and <b>Oyen</b> hunts in here too.',
+    'Shelves, the vanity and the washing machine are safe high spots.',
+  ],
+];
+function startBriefing() {
+  const lines = BRIEF[levelIdx] || [LEVELS[levelIdx].tip];
+  briefQ = lines.map((text, i) => ({ t: game.time + 0.3 + i * 3.2, text }));
+}
+function updateFeed() {
+  while (briefQ.length && game.time >= briefQ[0].t) say(briefQ.shift().text, 'brief');
+  const now = performance.now();
+  for (const el of feedEl.children) if (!el.classList.contains('old') && now - el._t > 10000) el.classList.add('old');
+}
+// Tips that appear the first time something happens (once per level)
+function contextHints() {
+  const p = roach.pos;
+  const near = (x, z, r) => Math.hypot(p.x - x, p.z - z) < r;
+  if (cat.mode === 'sleep' && near(cat.pos.x, cat.pos.z, 8)) hintOnce('catSleep', '<b>Oyen</b> is sleeping. Sneak past, but disturb him and he\'ll wake up and hunt you!');
+  if (cat.mode !== 'sleep' && cat.sniff > 0.3) hintOnce('catSniff', '<b>Oyen</b> can smell you. Keep moving, or get somewhere high.');
+  if (cat.hunting) hintOnce('catHunt', '<b>Oyen</b> is hunting! Squeeze into a gap he can\'t reach, or run home.', 'danger');
+  if (person.asleep && person.sleepSolids?.some((s) => p.x > s.minX - 3 && p.x < s.maxX + 3 && p.z > s.minZ - 3 && p.z < s.maxZ + 3))
+    hintOnce('sleeper', 'Shh... he\'s asleep. Don\'t touch him or make noise near his head.');
+  if (person.state === 'search') hintOnce('search', 'He heard something. Stay hidden until he gives up.');
+  if (car.state === 'chase') hintOnce('car', 'The <b>toy car</b> is after you! Climb onto furniture, it can\'t follow.');
+  if (p.y < 1 && world.traps.some((t) => near(t.x, t.z, 3.2))) hintOnce('trap', '<b>Glue trap</b> close by! Step on it and it\'s over. Go around.');
+  if (p.y < 1.5 && world.mothballs.some((m) => near(m.x, m.z, m.r + 2))) hintOnce('moth', 'The green haze is <b>ubat gegat</b>. Its fumes hurt, keep away.');
+  if (roach.health < 35 && !roach.dead) hintOnce('lowhp', `Low health! Find a snack and ${EAT_KEY} to heal.`, 'danger');
+  if (nearFood) hintOnce('food', `Snack! ${EAT_KEY} to eat it. It heals you, but munching is noisy.`);
+  if (!mmHint.classList.contains('hidden')) hintOnce('mm', 'Stuck? The <b>yellow dots</b> on the minimap show crumbs nearby. ▲▼ = higher or lower.');
+}
+
 // ---------------------------------------------------------------- Score + pop-ups (candy style)
 let lastScore = -1;
 const score = () => Math.round(game.protein * 10);
@@ -498,6 +592,7 @@ function resetGame() {
   flashAmt = poisonAmt = 0;
   lastScore = -1;
   ui.popups.innerHTML = '';
+  clearFeed();
   world.nestGlow.visible = false;
   placeFamily(true);
   setFamilyVisible(false);
@@ -935,7 +1030,7 @@ function updateCountdown(dt) {
   if (countdown.t > 0.85 * 4) {
     ui.countdown.classList.add('hidden');
     game.state = 'playing';
-    game.warn(LEVELS[levelIdx].tip);
+    startBriefing();
     if (isTouch) {
       ui.touch.classList.remove('hidden');
       document.documentElement.requestFullscreen?.().then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
@@ -1368,11 +1463,10 @@ function step(dt, time) {
     crunchTimer -= dt;
     if (crunchTimer <= 0) { sfx.crunch(); crunchTimer = 0.17; }
     foods.refresh(nearFood);
-    if (Math.random() < dt * 3) popup(`+${Math.round(amt * 10 / dt / 3)}`, 'crumb', 50, 60);
+    if (Math.random() < dt * 3) popup(`+${Math.round(amt * 10 / dt / 3)}`, 'crumb', 50, 24);
     if (nearFood.remaining <= 0.01) {
       sfx.foodDone();
-      game.warn(CHEERS[Math.floor(Math.random() * CHEERS.length)]);
-      popup(`${nearFood.name}  +${nearFood.protein * 10}`, 'big', 50, 48);
+      say(`${CHEERS[Math.floor(Math.random() * CHEERS.length)]} Finished the <b>${nearFood.name}</b> +${nearFood.protein * 10}`, 'good');
     }
   }
 
@@ -1423,8 +1517,8 @@ function step(dt, time) {
       roach.health = Math.min(100, roach.health + 4);
       roach.stamina = Math.min(100, roach.stamina + 10);
       sfx.pickup();
-      popup('+20', 'crumb');
-      if (game.crumbsEaten === CRUMB_COUNT) game.warn('All crumbs eaten!');
+      popup('+20', 'crumb', 50, 24);
+      if (game.crumbsEaten === CRUMB_COUNT) say('All crumbs eaten! Go home to the nest (green <b>⌂</b> on the minimap).', 'good');
     }
   }
 
@@ -1447,6 +1541,8 @@ function step(dt, time) {
   }
   sfx.setWings(game.state === 'playing' ? (roach.flying ? 1 : !roach.onGround ? roach.open * 0.45 : 0) : 0, 1 + clamp(roach.vy, -3, 3) * 0.05);
   if (roach.landed) { sfx.land(roach.landed); cam.dip = 0.1 * roach.landed; roach.landed = 0; }
+
+  if (playing) { updateFeed(); contextHints(); }
 
   if (roach.dead && game.state === 'playing') {
     game.deathTimer -= dt;
@@ -1581,14 +1677,14 @@ function updateHud(dt) {
 
   const clear = allClear();
   ui.objective.textContent = clear
-    ? 'House cleared! Get back to your nest (green hole).'
-    : `Find all the crumbs: ${CRUMB_COUNT - game.crumbsEaten} left · snacks refill your health`;
+    ? 'Go home to the nest!'
+    : `${CRUMB_COUNT - game.crumbsEaten} crumbs left`;
 
   ui.compass.classList.add('hidden'); // replaced by the minimap
   drawMinimap(dt, clear);
 
   if (nearFood) {
-    ui.prompt.textContent = `${isTouch ? 'Hold EAT' : 'Hold E'} to eat ${nearFood.name} (+health) · munching is noisy!`;
+    ui.prompt.textContent = `${isTouch ? 'Hold EAT' : 'Hold E'}: eat ${nearFood.name}`;
     ui.btnEat.classList.remove('hidden');
   } else {
     ui.prompt.textContent = '';

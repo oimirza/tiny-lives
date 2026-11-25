@@ -96,14 +96,36 @@
         color: var(--lemon); -webkit-text-stroke: 8px var(--ink); paint-order: stroke fill; text-shadow: 0 6px 0 var(--ink), 0 0 30px rgba(255,120,200,0.6);
         opacity: 0; transform: scale(0.6); transition: opacity 0.15s, transform 0.25s cubic-bezier(.34,1.8,.64,1); }
       #warn.show { opacity: 1; transform: scale(1); }
-      #prompt { position: absolute; bottom: 48px; left: 50%; transform: translateX(-50%); padding: 6px 18px; border-radius: 999px; font-size: 16px; font-weight: 600;
+      /* ---- Message log (left side, like a chat history): warnings, hints, level briefing ---- */
+      #feed { position: absolute; top: 104px; left: 14px; width: 270px; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+      .msg { display: flex; gap: 6px; align-items: flex-start; padding: 4px 9px 4px 7px; border-radius: 9px; font-size: 13px; line-height: 1.3; font-weight: 600; color: #fff;
+        background: rgba(24, 8, 52, 0.58); border-left: 3px solid #b48cff; text-shadow: 0 1px 2px rgba(0,0,0,0.6); animation: msgIn 0.25s ease-out;
+        transition: opacity 1.2s; }
+      .msg i { font-style: normal; flex: none; width: 16px; text-align: center; }
+      .msg b { color: var(--lemon); font-weight: 700; }
+      .msg .x { opacity: 0.75; font-size: 11px; margin-left: 2px; }
+      .msg.danger { border-left-color: #ff4d4d; background: rgba(70, 8, 30, 0.62); }
+      .msg.tip { border-left-color: #ffd23a; }
+      .msg.good { border-left-color: #3dff6e; }
+      .msg.brief { border-left-color: #6fd3ff; }
+      .msg.old { opacity: 0.55; }
+      .msg.bump { animation: msgBump 0.35s ease-out; }
+      @keyframes msgIn { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+      @keyframes msgBump { 40% { transform: translateX(5px); background: rgba(150, 20, 50, 0.75); } }
+      body.touch #feed { top: 132px; left: calc(12px + env(safe-area-inset-left)); width: 270px; gap: 3px; }
+      body.touch .msg { font-size: 11px; line-height: 1.25; padding: 3px 7px 3px 5px; }
+      @media (max-height: 430px) {
+        body.touch #feed { top: 120px; }
+        body.touch .msg:nth-last-child(n+3) { display: none; } /* short phones: only the 2 newest, clear of the joystick */
+      }
+      #prompt { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 3px 12px; border-radius: 999px; font-size: 13px; font-weight: 600;
         background: linear-gradient(180deg, #ffe17a, #ffb52e); color: var(--ink); border: 3px solid #fff; box-shadow: 0 4px 0 #c77a00; white-space: nowrap; }
       #prompt:empty { display: none; }
       .hint { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 12px; font-weight: 500; -webkit-text-stroke: 3px rgba(0,0,0,0.6); paint-order: stroke fill; opacity: 0.9; }
 
       /* ---- Score pop-ups ---- */
       #popups { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
-      .pop { position: absolute; font-weight: 700; font-size: 28px; color: #fff; -webkit-text-stroke: 5px var(--ink); paint-order: stroke fill; text-shadow: 0 3px 0 var(--ink);
+      .pop { position: absolute; font-weight: 700; font-size: 20px; color: #fff; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; text-shadow: 0 3px 0 var(--ink);
         animation: popUp 1.1s cubic-bezier(.2,.9,.3,1) forwards; white-space: nowrap; }
       .pop.crumb { color: var(--lemon); }
       .pop.big { font-size: 40px; color: #ff8bd0; }
@@ -179,7 +201,7 @@
       body.touch #stealthLabel { font-size: 12px; }
       body.touch #objective { font-size: 11px; max-width: 280px; }
       body.touch #warn { font-size: 30px; top: 34%; }
-      body.touch #prompt { bottom: 128px; font-size: 13px; }
+      body.touch #prompt { bottom: 12px; font-size: 11px; }
       body.touch .panel { padding: 40px 16px 18px; }
       body.touch h1 { font-size: 40px; }
       body.touch .cards { grid-template-columns: 1fr; }
@@ -444,6 +466,7 @@
       </div>
 
       <div id="warn"></div>
+      <div id="feed" aria-live="polite"></div>
       <div id="prompt"></div>
       <button id="menuBtn" class="desktop-only">☰ MENU</button>
     </div>
