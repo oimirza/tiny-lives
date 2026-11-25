@@ -118,7 +118,8 @@ export class Cat {
   reset() {
     if (this.sleepSolid) this.world.removeSolid(this.sleepSolid); // re-added each frame while she sleeps
     this.body.position.y = 0;
-    this.pos = new THREE.Vector3(-6, 0, 12);
+    const cs = this.world.layout?.catStart || [-6, 12];
+    this.pos = new THREE.Vector3(cs[0], 0, cs[1]);
     this.facing = Math.PI / 2;
     this.move = 0;
     this.phase = 0;
@@ -127,7 +128,7 @@ export class Cat {
     this.hunting = false;
     this.huntTimer = 0;
     this.lastKnown = new THREE.Vector3();
-    this.target = new THREE.Vector3(-4, 0, 8);
+    this.target = this.pos.clone().add(new THREE.Vector3(2, 0, -4));
     this.wait = 1;
     this.suspicion = 0;
     this.sniff = 0;

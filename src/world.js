@@ -131,8 +131,8 @@ const tileTexture = (rx, ry, base = [222, 218, 208]) => canvasTex(256, 256, (g) 
 }, rx, ry);
 
 // Painted plaster: subtle noise, dirtier near the floor, scuffs above the baseboard.
-const wallTexture = (rx) => canvasTex(512, 512, (g, w, h) => {
-  g.fillStyle = '#dccfb6';
+const wallTexture = (rx, color = '#dccfb6') => canvasTex(512, 512, (g, w, h) => {
+  g.fillStyle = color;
   g.fillRect(0, 0, w, h);
   speckle(g, w, h, 5000, 0.05);
   const grad = g.createLinearGradient(0, h * 0.7, 0, h);
@@ -492,21 +492,99 @@ const crackTexture = () => {
 };
 
 // ---------------------------------------------------------------- World
+// ---------------------------------------------------------------- Locations
+// Same room size everywhere (so the nest, cutscenes and camera all still work); different furniture, routes and hazards.
+// traps: [x, z, alongX] candidates (a level uses the first N); mothballs: [x, z]; crumbSpots: sneaky hand-placed crumbs;
+// foods: where the 6 snacks sit (same order as foods.js); waypoints: the human's patrol route.
+export const LAYOUTS = {
+  living: {
+    name: 'Living room',
+    waypoints: [[-20, -13], [-9, -12], [-21, 4], [-8, 5], [-15, 2], [0, 0], [4, -12], [16, -8], [22, 8], [6, 12], [18, 12]],
+    personStart: [0, 2], catStart: [-6, 12],
+    traps: [[-5, -11, false], [7, 7.2, true], [23.6, 9.5, false], [0, -4, true], [-22, 0, false], [14, -12, false], [-4, 14, false]],
+    mothballs: [[-18.6, -17.7], [-27.2, -14.6], [27.2, 19.2], [-1, 16], [12, -15.5]],
+    crumbSpots: [
+      [11, 0, 3], [12, 0, -4], [15, 0, 4.3], [26.6, 0, -3], [26.6, 0, 3], [11.5, 0, 18.6], [13.8, 0, 18.5],
+      [-12, 0, -18.6], [-20, 0, -18.6], [-26.5, 0, -6], [-26, 10, -18], [-14, 12, -19.3], [5, 5.3, -18.62], [3.5, 7.8, -18.62],
+      [-16.5, 4.1, -3], [-15, 0, 11], [19.2, 1.8, -3], [20, 2.1, -12.5], [-6, 3, -15], [-1, 0, -18.6], [26.6, 2.65, 4],
+    ],
+    foods: [[-15, 3.2, 11], [20, 1.8, 1.2], [-9.5, 0, -13.2], [-13, 4.1, -4.5], [11.2, 0, -2], [-20, 0, -8]],
+  },
+  bedroom: {
+    name: 'Bedroom',
+    waypoints: [[-12, 3], [0, -6], [6, 6], [-20, 8], [14, -10], [22, 6], [-8, 12], [4, 14], [20, -6]],
+    personStart: [2, 6], catStart: [-6, 12],
+    traps: [[-2, 2, true], [6, -12, false], [-22, -2, false], [14, 8, true], [-6, 16, false], [22, -10, false], [0, -14, true], [-18, 14, true], [25.5, 9, false]],
+    mothballs: [[-24, -14], [16, -15], [26, 12.5], [-10, 18], [4, -3], [-20, 17]],
+    crumbSpots: [
+      [-12, 0, -10], [-8, 0, -14], [-16, 0, -6], [-21.6, 3.2, -18], [-3.9, 3.2, -18], [10.5, 3.9, -18.3], [-25.4, 3.6, 11.3],
+      [-25.5, 0, 6], [24, 2.2, -17], [-10, 4.15, -12], [13, 0, -18.4], [9.6, 0, 18.6], [-17, 4.1, -15], [-26.6, 0, 1],
+      [26.5, 0, -1], [18, 0, -18.6], [-1, 0, -18.6], [6, 0, 18.6], [-24, 0, -18.6], [24.5, 0, 12], [-14, 0, -18.6],
+    ],
+    foods: [[-25.5, 3.6, 6.9], [-15, 4.15, -7], [6, 0, 13], [14.2, 3.9, -17.9], [-12, 0, -6], [16, 0, 3]],
+  },
+  bathroom: {
+    name: 'Toilet & shower',
+    waypoints: [[-14, -10], [-4, -10], [0, 2], [12, 2], [-16, 6], [18, -4], [6, 10], [-6, 12], [16, 12]],
+    personStart: [2, 6], catStart: [-6, 12],
+    traps: [[-2, -6, true], [4, 4, false], [-14, -5, false], [16, -5, true], [-20, -1, true], [10, 12, false], [-10, 12, true], [20, 10, false], [-26, -8, false], [0, 16, true], [-14, 16, true]],
+    mothballs: [[-26, -18.4], [-3, -15], [26.5, -1], [-21, 17], [10, -5], [2, 18.4]],
+    crumbSpots: [
+      [-24.6, 0, -18.8], [-8.4, 4.05, -17.3], [-8, 0, -18.4], [24, 5.05, 6], [-27.2, 3.6, 0], [16, 0.2, -16],
+      [-1.5, 0, 0.6], [0, 0.03, 10], [-27.2, 6.6, -1], [10, 0.2, -18.5], [26.5, 0, 3], [-25, 0, 9.5],
+      [24, 0, 1.5], [-12, 0, -19], [6, 0, -18.8], [-27, 0, 18.6], [14, 0, 18.6], [-21.2, 1.9, -15.5], [-3, 4.05, -18.6],
+      [26, 0, 18], [-27, 0, -12],
+    ],
+    foods: [[24, 5.05, 4.6], [-4.2, 4.05, -17.6], [-20, 0, 6], [2, 0.03, 11], [-17, 0, -12], [10, 0, 4]],
+  },
+};
+
 export class World {
   constructor(scene) {
-    this.scene = scene;
+    this.realScene = scene;
+    this.onCrash = null; // set by the game: called when a prop hits the floor
+    this.dynamic = []; // moving colliders (characters), refreshed each frame
+    this._ray = new THREE.Raycaster();
+    this.setLocation('living', { traps: 3, mothballs: 3 });
+  }
+
+  // (Re)build the whole room for a level. Returns true if anything changed.
+  setLocation(loc, o = {}) {
+    const key = `${loc}|${o.traps}|${o.mothballs}|${o.sleeper ? 1 : 0}`;
+    if (key === this.key) return false;
+    this.key = key;
+    if (this.root) {
+      this.realScene.remove(this.root);
+      const seen = new Set();
+      this.root.traverse((m) => {
+        if (m.geometry && !seen.has(m.geometry)) { seen.add(m.geometry); m.geometry.dispose(); }
+        const mats = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];
+        for (const mt of mats) { if (seen.has(mt)) continue; seen.add(mt); mt.map?.dispose(); mt.dispose(); }
+      });
+    }
+    this.root = new THREE.Group();
+    this.realScene.add(this.root);
+    this.scene = this.root;
+    this.loc = loc;
+    this.layout = LAYOUTS[loc];
     this.solids = []; // AABBs used for collision
     this.occluders = []; // meshes the camera should not go through
     this.surfaces = []; // tops where crumbs can spawn
     this.lamps = []; // {x, y, z, color} for point lights
     this.fans = []; // spinning fan blades {obj, axis, speed}
     this.props = []; // things the cat can knock over
-    this.onCrash = null; // set by the game: called when a prop hits the floor
-    this.dynamic = []; // moving colliders (characters), refreshed each frame
     this.walkGroups = []; // plant leaves you can stand on (exact surface, not boxes)
-    this._ray = new THREE.Raycaster();
-    this.build();
+    this.windows = []; // window glass materials (sky colour changes with the time of day)
+    this.ceilingMats = []; // glowing ceiling light discs (switched off at night)
+    this.lampMats = []; // glowing lamp shades
+    this.tvMat = null;
+    this.opts = o;
+    if (loc === 'bedroom') this.buildBedroom();
+    else if (loc === 'bathroom') this.buildBathroom();
+    else this.build();
+    if (o.sleeper && loc === 'living') this.sleeperBed();
     this.optimize();
+    return true;
   }
 
   mat(color, rough = 0.8, metal = 0, extra = {}) {
@@ -1025,6 +1103,7 @@ export class World {
     for (const z of [-4.7, 4.7]) for (const x of [25.5, 27.7]) this.box({ x, z, w: 0.22, d: 0.22, y0: 0, h: 0.45, color: 0x222222 });
     const screenMat = new THREE.MeshStandardMaterial({ color: 0x0b1830, emissive: 0x1b3a6a, emissiveIntensity: 0.6, roughness: 0.15 });
     const blackTV = this.mat(0x111111, 0.3);
+    this.tvMat = screenMat;
     this.prop('TV', 27.0, 2.65, 0, (add) => {
       add(new RoundedBoxGeometry(1.2, 0.12, 2.6, 2, 0.05), blackTV, 0, 0.06, 0);
       add(new THREE.BoxGeometry(0.25, 0.7, 0.4), blackTV, 0.1, 0.45, 0);
@@ -1176,9 +1255,319 @@ export class World {
 
     // Ceiling lights
     for (const [x, z] of [[-15, -4], [-2, 8], [22, 8]]) {
-      this.deco(new THREE.CylinderGeometry(1.2, 1.2, 0.15, 24), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff0d0, emissiveIntensity: 1.2 }), x, ROOM.height - 0.08, z);
+      const cm = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff0d0, emissiveIntensity: 1.2 });
+      cm.userData.on = 1.2;
+      this.ceilingMats.push(cm);
+      this.deco(new THREE.CylinderGeometry(1.2, 1.2, 0.15, 24), cm, x, ROOM.height - 0.08, z).userData.keep = true;
       this.lamps.push({ x, y: ROOM.height - 0.8, z, color: 0xfff0d8, power: 1 });
     }
+  }
+
+  // ================================================================ Shared bits for the extra rooms
+  // Floor, ceiling, four walls with baseboards, and the crack in the north wall (second safe spot)
+  shell({ floorMap, floorRough = 0.3, wallColor = '#dccfb6', wallMap, ceilColor = 0xf4f1ea, baseColor = 0xf5f2ea }) {
+    const { hx, hz, height: RH } = ROOM;
+    const S = this.scene;
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(hx * 2, hz * 2), this.mat(0xffffff, floorRough, 0, { map: floorMap }));
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    S.add(floor);
+    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(hx * 2, hz * 2), this.mat(ceilColor, 0.95));
+    ceil.rotation.x = Math.PI / 2;
+    ceil.position.y = RH;
+    S.add(ceil);
+    const baseMat = this.mat(baseColor, 0.5);
+    for (const W of [
+      { x: 0, z: -hz, ry: 0, len: hx * 2 }, { x: 0, z: hz, ry: Math.PI, len: hx * 2 },
+      { x: -hx, z: 0, ry: Math.PI / 2, len: hz * 2 }, { x: hx, z: 0, ry: -Math.PI / 2, len: hz * 2 },
+    ]) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(W.len, RH), this.mat(0xffffff, wallMap ? 0.35 : 0.95, 0, { map: wallMap ? wallMap(W.len) : wallTexture(W.len / 16, wallColor) }));
+      m.position.set(W.x, RH / 2, W.z);
+      m.rotation.y = W.ry;
+      m.receiveShadow = true;
+      S.add(m);
+      this.occluders.push(m);
+      const bb = new THREE.Mesh(new THREE.BoxGeometry(W.len, 0.6, 0.15), baseMat);
+      bb.position.set(W.x - Math.sign(W.x) * 0.075, 0.3, W.z - Math.sign(W.z) * 0.075);
+      bb.rotation.y = W.ry;
+      bb.receiveShadow = true;
+      S.add(bb);
+    }
+    const crack = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 7.8), new THREE.MeshStandardMaterial({ map: crackTexture(), transparent: true, roughness: 1, depthWrite: false }));
+    crack.position.set(CRACK.x, 3.9, -hz + 0.17);
+    crack.renderOrder = 1;
+    S.add(crack);
+  }
+
+  // The family home: a tall cupboard against the south wall with the hole in the wall just above it
+  nest(color = 0x5e3b22, panelColor = 0x6e4a2c, handle = 0xc9a227) {
+    const hz = ROOM.hz;
+    const body = this.mat(color, 0.55);
+    this.box({ x: 20, z: 18.4, w: 5.2, d: 3.0, y0: 0, h: 9.7, mat: body, round: 0.05 });
+    this.box({ x: 20, z: 18.4, w: 5.6, d: 3.3, y0: 9.7, h: 0.3, mat: body, surface: false, round: 0.04 });
+    const panel = this.mat(panelColor, 0.5), gold = this.mat(handle, 0.25, 0.9);
+    for (const dx of [-1.28, 1.28]) {
+      this.deco(new RoundedBoxGeometry(2.4, 6.2, 0.08, 2, 0.04), panel, 20 + dx, 6.2, 16.88, [0, 0, 0], false);
+      this.deco(new THREE.CylinderGeometry(0.06, 0.06, 0.7, 8), gold, 20 + dx * 0.15, 6.2, 16.8, [0, 0, 0], false);
+    }
+    for (const y of [1.0, 2.4]) {
+      this.deco(new RoundedBoxGeometry(5.0, 1.2, 0.08, 2, 0.04), panel, 20, y, 16.88, [0, 0, 0], false);
+      this.deco(new THREE.BoxGeometry(0.9, 0.12, 0.12), gold, 20, y, 16.8, [0, 0, 0], false);
+    }
+    this.deco(new THREE.BoxGeometry(1.8, 1.1, 1.4), this.mat(0xb08a5a, 0.95), 18.4, 10.55, 18.6, [0, 0.2, 0]);
+    this.deco(new THREE.BoxGeometry(1.4, 0.25, 0.9), this.mat(0xd8d2c0, 1), 22.0, 10.12, 17.3, [0, -0.3, 0]);
+    const hole = new THREE.Mesh(new THREE.CircleGeometry(0.7, 24, 0, Math.PI), new THREE.MeshBasicMaterial({ color: 0x050302 }));
+    hole.position.set(NEST.x, NEST.y + 0.01, hz - 0.02);
+    hole.rotation.y = Math.PI;
+    this.scene.add(hole);
+    this.nestGlow = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.95, 24, 1, 0, Math.PI), new THREE.MeshBasicMaterial({ color: 0x7dff8a, transparent: true, opacity: 0.9 }));
+    this.nestGlow.position.set(NEST.x, NEST.y + 0.01, hz - 0.03);
+    this.nestGlow.rotation.y = Math.PI;
+    this.nestGlow.visible = false;
+    this.scene.add(this.nestGlow);
+  }
+
+  // A window with a frame, sky-coloured glass (changes with the time of day), grilles and curtains
+  windowOn(wall, c, y, w, h, frosted = false) {
+    const { hx, hz } = ROOM;
+    const rot = { n: 0, s: Math.PI, w: Math.PI / 2, e: -Math.PI / 2 }[wall];
+    const at = (d) => wall === 'n' ? [c, -hz + d] : wall === 's' ? [c, hz - d] : wall === 'w' ? [-hx + d, c] : [hx - d, c];
+    const add = (geo, mat, d, yy = y) => { const m = new THREE.Mesh(geo, mat); const [x, z] = at(d); m.position.set(x, yy, z); m.rotation.y = rot; this.scene.add(m); return m; };
+    add(new THREE.PlaneGeometry(w + 0.6, h + 0.6), this.mat(0xffffff, 0.5), 0.02);
+    const glass = add(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: frosted ? 0xe6f0f4 : 0xcfeaff }), 0.04);
+    glass.material.userData.frosted = frosted;
+    this.windows.push(glass.material);
+    if (!frosted) {
+      for (let k = -w / 2 + 0.5; k <= w / 2 - 0.4; k += 0.9) {
+        const [x, z] = at(0.12);
+        const g = new THREE.Mesh(new THREE.BoxGeometry(0.08, h, 0.08), this.mat(0xf2f2f2, 0.4, 0.3));
+        if (wall === 'n' || wall === 's') g.position.set(x + k, y, z); else g.position.set(x, y, z + k);
+        this.scene.add(g);
+      }
+      for (const s of [-1, 1]) {
+        const [x, z] = at(0.4);
+        const cw = new THREE.Mesh(new THREE.BoxGeometry(wall === 'n' || wall === 's' ? 1.6 : 0.3, h + 4, wall === 'n' || wall === 's' ? 0.3 : 1.6), this.mat(0xc9b38a, 1));
+        if (wall === 'n' || wall === 's') cw.position.set(x + s * (w / 2 + 0.6), y - 0.5, z); else cw.position.set(x, y - 0.5, z + s * (w / 2 + 0.6));
+        this.scene.add(cw);
+        this.solidFrom(cw);
+      }
+    }
+  }
+
+  ceilingLight(x, z, color = 0xfff0d8, long = false) {
+    const cm = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: color, emissiveIntensity: 1.2 });
+    cm.userData.on = 1.2;
+    this.ceilingMats.push(cm);
+    const geo = long ? new RoundedBoxGeometry(4.5, 0.18, 0.7, 2, 0.08) : new THREE.CylinderGeometry(1.2, 1.2, 0.15, 24);
+    this.deco(geo, cm, x, ROOM.height - 0.1, z).userData.keep = true;
+    this.lamps.push({ x, y: ROOM.height - 0.8, z, color, power: 1 });
+  }
+
+  // A small table lamp with a glowing shade (a real light at night)
+  tableLamp(x, y, z, color = 0xffc98a) {
+    this.deco(new THREE.CylinderGeometry(0.15, 0.3, 1.0, 10), this.mat(0xd9c7a7, 0.5), x, y + 0.5, z);
+    const shade = this.mat(0xfff1d6, 0.9, 0, { side: THREE.DoubleSide, emissive: 0xffd9a0, emissiveIntensity: 0.5 });
+    this.deco(new THREE.CylinderGeometry(0.45, 0.7, 0.9, 16, 1, true), shade, x, y + 1.4, z);
+    this.lamps.push({ x, y: y + 1.4, z, color, power: 0.45 });
+  }
+
+  // Night, level 3: the uncle fell asleep on a mat in front of the TV. His pillow and mat.
+  sleeperBed() {
+    const mat = canvasTex(256, 128, (g, w, h) => {
+      for (let i = 0; i < 16; i++) { g.fillStyle = i % 2 ? '#c9a46a' : '#b88d52'; g.fillRect(0, (i * h) / 16, w, h / 16); }
+      g.strokeStyle = 'rgba(120,40,40,0.8)'; g.lineWidth = 6; g.strokeRect(6, 6, w - 12, h - 12);
+      speckle(g, w, h, 1500, 0.1);
+    });
+    const tikar = new THREE.Mesh(new THREE.PlaneGeometry(18, 5.4), this.mat(0xffffff, 0.95, 0, { map: mat }));
+    tikar.rotation.x = -Math.PI / 2;
+    tikar.position.set(13.6, 0.012, 10.5);
+    tikar.receiveShadow = true;
+    this.scene.add(tikar);
+    this.deco(new RoundedBoxGeometry(2.6, 0.9, 3.6, 3, 0.4), this.mat(0xf2efe6, 0.9), 5.6, 0.45, 10.5);
+    this.deco(new RoundedBoxGeometry(1.6, 0.5, 1.2, 2, 0.2), this.mat(0x222222, 0.4), 22.8, 0.25, 13.4); // TV remote... well, a phone
+  }
+
+  // ================================================================ BEDROOM (level 4)
+  buildBedroom() {
+    const { hx, hz } = ROOM;
+    this.shell({ floorMap: woodTexture(6, 4), floorRough: 0.45, wallColor: '#c9d7e3', baseColor: 0xffffff });
+    this.nest(0x6a4428, 0x7a5232);
+    const wood = this.mat(0x7a5232, 0.55), darkWood = this.mat(0x4a2f1c, 0.55), white = this.mat(0xf5f3ee, 0.4);
+    // Queen bed against the north wall: gap under the frame = hiding spot
+    const bx0 = -19, bx1 = -5.5, bz0 = -19.6, bz1 = -3.6, bcx = (bx0 + bx1) / 2, bw = bx1 - bx0, bd = bz1 - bz0, bcz = (bz0 + bz1) / 2;
+    this.box({ x: bcx, z: -19.6, w: bw + 0.8, d: 0.6, y0: 0, h: 8, mat: darkWood, round: 0.2 }); // headboard
+    for (const x of [bx0 + 0.3, bx1 - 0.3]) for (const z of [bz0 + 0.9, bz1 - 0.3]) this.box({ x, z, w: 0.5, d: 0.5, y0: 0, h: 0.75, mat: darkWood, round: 0.05 });
+    this.box({ x: bcx, z: bcz + 0.3, w: bw, d: bd - 0.6, y0: 0.75, h: 1.5, mat: wood, round: 0.12 });
+    this.box({ x: bcx, z: bcz + 0.3, w: bw - 0.4, d: bd - 1, y0: 2.25, h: 1.8, color: 0xf7f4ee, rough: 0.95, surface: true, round: 0.4 }); // mattress
+    this.box({ x: bcx, z: bcz + 3.2, w: bw - 0.1, d: bd - 6.6, y0: 3.5, h: 0.65, color: 0x5b7fb5, rough: 1, surface: true, round: 0.3 }); // blanket
+    for (const x of [bcx - 3.2, bcx + 3.2]) this.box({ x, z: -17.6, w: 5, d: 2.2, y0: 4.05, h: 0.9, color: 0xffffff, rough: 1, surface: true, round: 0.4 }); // pillows
+    this.deco(new THREE.SphereGeometry(0.8, 16, 12), this.mat(0xc8935a, 1), bcx + 4.5, 4.9, -15.2); // teddy bear
+    this.deco(new THREE.SphereGeometry(0.55, 14, 10), this.mat(0xc8935a, 1), bcx + 4.5, 6.0, -15.2);
+    // Bedside tables with lamps
+    for (const x of [-21.6, -3.9]) {
+      this.box({ x, z: -18, w: 2.6, d: 2.6, y0: 0.3, h: 2.9, mat: wood, surface: true, round: 0.06 });
+      for (const lx of [x - 1.1, x + 1.1]) this.box({ x: lx, z: -18, w: 0.25, d: 2.4, y0: 0, h: 0.3, mat: darkWood });
+    }
+    this.tableLamp(-21.6, 3.2, -18.6);
+    this.tableLamp(-3.9, 3.2, -18.6);
+    // Dressing table with a big mirror and a stool
+    this.box({ x: 12, z: -18.3, w: 6, d: 2.4, y0: 0.5, h: 3.4, mat: white, surface: true, round: 0.06 });
+    for (const x of [9.3, 14.7]) this.box({ x, z: -18.3, w: 0.3, d: 2.2, y0: 0, h: 0.5, color: 0xdddddd });
+    this.deco(new RoundedBoxGeometry(5, 6, 0.15, 2, 0.05), white, 12, 8, -hz + 0.08, [0, 0, 0], false);
+    this.deco(new THREE.PlaneGeometry(4.5, 5.5), new THREE.MeshStandardMaterial({ color: 0xdfe8ee, metalness: 1, roughness: 0.04 }), 12, 8, -hz + 0.17, [0, 0, 0], false);
+    for (const [x, c] of [[10.2, 0xd94f8a], [10.8, 0x8f6bd9], [13.6, 0xf2c14e]]) this.deco(new THREE.CylinderGeometry(0.18, 0.2, 0.7, 10), this.mat(c, 0.3), x, 4.25, -18.8);
+    this.prop('stool', 12, 0, -14.6, (add) => {
+      add(new THREE.CylinderGeometry(1.0, 1.0, 0.4, 20), this.mat(0xe8a0b4, 0.9), 0, 2.4, 0);
+      for (const [lx, lz] of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]]) add(new THREE.CylinderGeometry(0.08, 0.08, 2.2, 6), this.mat(0xd9c7a7, 0.5), lx, 1.1, lz);
+    });
+    // Study desk on the west wall with a laptop, books and a chair
+    this.table(-26, 8, 3.6, 8, 3.6, 0xe9e4da, 0xbcb4a6);
+    this.deco(new THREE.BoxGeometry(1.8, 0.08, 2.6), this.mat(0x9aa0a6, 0.3, 0.7), -26.4, 3.68, 9.2);
+    this.deco(new THREE.BoxGeometry(0.08, 1.6, 2.6), this.mat(0x222831, 0.2, 0.4), -27.25, 4.5, 9.2, [0, 0, -0.25]);
+    for (let i = 0; i < 4; i++) this.deco(new THREE.BoxGeometry(1.4, 0.3, 1.9), this.mat([0xb23a48, 0x2e86ab, 0xf6ae2d, 0x758e4f][i], 0.8), -26.3, 3.75 + i * 0.3, 5.0, [0, i * 0.2, 0]);
+    this.chair(-22.6, 8, 1, 0x3b3b44);
+    // Prayer mat (sejadah) on the floor
+    const sej = canvasTex(128, 256, (g, w, h) => {
+      g.fillStyle = '#1f5f4a'; g.fillRect(0, 0, w, h);
+      g.strokeStyle = '#e8c58a'; g.lineWidth = 6; g.strokeRect(8, 8, w - 16, h - 16);
+      g.fillStyle = '#b23a48'; g.beginPath(); g.moveTo(24, 90); g.quadraticCurveTo(64, 20, 104, 90); g.lineTo(104, 230); g.lineTo(24, 230); g.closePath(); g.fill();
+      g.strokeStyle = '#e8c58a'; g.lineWidth = 3; g.stroke();
+      speckle(g, w, h, 900, 0.1);
+    });
+    const sm = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 7), this.mat(0xffffff, 1, 0, { map: sej }));
+    sm.rotation.set(-Math.PI / 2, 0, 0.4);
+    sm.position.set(-13, 0.01, 11);
+    this.scene.add(sm);
+    // Round rug by the foot of the bed
+    const rug = new THREE.Mesh(new THREE.CircleGeometry(4.5, 40), this.mat(0xe0b0c0, 1));
+    rug.rotation.x = -Math.PI / 2;
+    rug.position.set(-11, 0.008, 1);
+    this.scene.add(rug);
+    // Laundry basket full of clothes, toy box, slippers
+    this.box({ x: 8, z: 16.5, w: 2.4, d: 2.4, y0: 0, h: 2.6, color: 0xd9c08f, rough: 1, round: 0.5, surface: true });
+    this.deco(new THREE.SphereGeometry(1.1, 12, 8), this.mat(0x6c8ebf, 1), 8, 2.7, 16.5).scale.y = 0.4;
+    this.box({ x: 24, z: -17, w: 3.4, d: 2.4, y0: 0, h: 2.2, color: 0xf2c14e, rough: 0.6, surface: true, round: 0.1 });
+    this.deco(new THREE.SphereGeometry(0.5, 14, 10), this.mat(0xe63946, 0.4), 23.2, 2.7, -17);
+    this.deco(new THREE.BoxGeometry(0.8, 0.8, 0.8), this.mat(0x2a9d8f, 0.6), 24.8, 2.6, -16.8, [0, 0.5, 0]);
+    const slip = this.mat(0xff8fab, 0.6);
+    for (const [sx, sz, r] of [[-3, -1.5, 0.2], [-2, -1.8, -0.15]]) this.deco(new RoundedBoxGeometry(0.85, 0.12, 2.2, 2, 0.05), slip, sx, 0.06, sz, [0, r, 0]);
+    // Window on the east wall, aircon above the bed, wall clock, photos, ceiling fan + light
+    this.windowOn('e', 2, 9, 10, 6);
+    this.deco(new RoundedBoxGeometry(4.0, 1.1, 0.9, 3, 0.25), white, -12, 12.2, -hz + 0.45);
+    this.deco(new THREE.SphereGeometry(0.04, 6, 4), new THREE.MeshStandardMaterial({ color: 0x66ccff, emissive: 0x3399ff, emissiveIntensity: 2 }), -10.4, 12.4, -hz + 0.91, [0, 0, 0], false);
+    this.deco(new THREE.CylinderGeometry(0.9, 0.9, 0.12, 28), this.mat(0xffffff, 0.4), -hx + 0.08, 11, -6, [0, 0, Math.PI / 2], false);
+    [[2, 8.4, 0], [4.2, 9, 1], [6.2, 8.2, 2]].forEach(([x, y, i]) => {
+      this.deco(new THREE.BoxGeometry(1.5, 1.9, 0.1), this.mat(0x3a2414, 0.5), x, y, hz - 0.06, [0, 0, 0], false);
+      this.deco(new THREE.PlaneGeometry(1.2, 1.6), this.mat(0xffffff, 0.8, 0, { map: photoTexture(i) }), x, y, hz - 0.12, [0, Math.PI, 0], false);
+    });
+    this.deco(new THREE.PlaneGeometry(5, 10.5), this.mat(0x6b4630, 0.6), 2, 5.25, hz - 0.03, [0, Math.PI, 0]); // door
+    this.deco(new THREE.SphereGeometry(0.2, 10, 8), this.mat(0xd4af37, 0.2, 0.9), 0.1, 5, hz - 0.2);
+    this.plant(26, 16.5, 'snake', 0, 0.8);
+    this.plant(-26.6, 17.5, 'palm', 0, 0.75);
+    this.ceilingLight(0, 0);
+    this.ceilingFan(-8, 6);
+    this.floorHazards();
+  }
+
+  // ================================================================ TOILET & SHOWER (level 5)
+  buildBathroom() {
+    const { hx, hz } = ROOM;
+    const wallTiles = (len) => tileTexture(len / 3, 16 / 3, [236, 238, 236]);
+    this.shell({ floorMap: tileTexture(56 / 2, 40 / 2, [170, 196, 205]), floorRough: 0.18, wallMap: wallTiles, baseColor: 0xd8dcdc });
+    this.nest(0xe9e6df, 0xf4f2ec, 0xb8bcc2); // tall towel cabinet
+    const white = this.mat(0xf8f8f6, 0.15), steel = this.mat(0xc9ccd0, 0.2, 0.85), blue = this.mat(0x3a86c8, 0.4);
+    // Toilet (sit-down) + water tank + bidet hose (paip bidet, very Malaysian)
+    this.box({ x: -22, z: -18.6, w: 3.2, d: 1.6, y0: 2.4, h: 3.0, mat: white, round: 0.25, surface: true });
+    this.box({ x: -22, z: -16.6, w: 2.4, d: 3.2, y0: 0, h: 1.9, mat: white, round: 0.5 });
+    this.deco(new THREE.TorusGeometry(1.15, 0.18, 10, 24), white, -22, 2.0, -16.3, [Math.PI / 2, 0, 0], false);
+    this.deco(new THREE.CylinderGeometry(0.06, 0.06, 1.2, 8), steel, -19.6, 3.5, -19.7, [0, 0, 0], false);
+    this.deco(new THREE.CylinderGeometry(0.12, 0.1, 0.6, 8), steel, -19.6, 2.8, -19.55, [0.2, 0, 0], false);
+    this.deco(new THREE.TorusGeometry(0.5, 0.05, 6, 16, Math.PI * 1.3), this.mat(0x999999, 0.4, 0.6), -19.6, 1.6, -19.6, [0, 0, 0], false);
+    // toilet roll on the wall
+    this.deco(new THREE.CylinderGeometry(0.45, 0.45, 0.8, 16), this.mat(0xffffff, 0.9), -18.8, 1.9, -17.4, [0, 0, Math.PI / 2]);
+    // Sink vanity with a mirror (gap under = hiding spot), toothbrush cup, soap
+    this.box({ x: -6, z: -18.4, w: 7, d: 3, y0: 0.6, h: 3.1, color: 0x7d6a58, rough: 0.6, round: 0.06 });
+    this.box({ x: -6, z: -18.4, w: 7.2, d: 3.2, y0: 3.7, h: 0.35, color: 0xece8e1, rough: 0.2, surface: true, round: 0.04 });
+    this.deco(new THREE.CylinderGeometry(1.0, 0.7, 0.5, 20), white, -6.6, 4.0, -18.2);
+    this.deco(new THREE.CylinderGeometry(0.08, 0.08, 1.2, 8), steel, -6.6, 4.6, -19.6);
+    this.deco(new THREE.CylinderGeometry(0.06, 0.06, 0.8, 8), steel, -6.6, 5.15, -19.25, [Math.PI / 2, 0, 0]);
+    this.deco(new THREE.CylinderGeometry(0.25, 0.22, 0.7, 10), this.mat(0x8ecae6, 0.3), -3.6, 4.4, -19);
+    this.deco(new RoundedBoxGeometry(0.6, 0.2, 0.4, 2, 0.08), this.mat(0xffb4c2, 0.5), -9, 4.15, -18.2);
+    this.deco(new RoundedBoxGeometry(6.4, 4.6, 0.12, 2, 0.05), steel, -6, 8.4, -hz + 0.07, [0, 0, 0], false);
+    this.deco(new THREE.PlaneGeometry(6.0, 4.2), new THREE.MeshStandardMaterial({ color: 0xdfe8ee, metalness: 1, roughness: 0.04 }), -6, 8.4, -hz + 0.15, [0, 0, 0], false);
+    // Shower area: raised tray, glass screen, shower head, drain, wet puddles
+    this.box({ x: 14, z: -15, w: 12, d: 10, y0: 0, h: 0.2, color: 0xdfe6e8, rough: 0.15, surface: true, round: 0.02 });
+    const glass = new THREE.MeshPhysicalMaterial({ color: 0xd8f0ff, roughness: 0.05, transmission: 0.0, transparent: true, opacity: 0.28, depthWrite: false });
+    const g1 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 9, 10), glass); g1.position.set(8.05, 4.7, -15); this.scene.add(g1); this.solidFrom(g1);
+    const g2 = new THREE.Mesh(new THREE.BoxGeometry(6, 9, 0.12), glass); g2.position.set(11, 4.7, -10.05); this.scene.add(g2); this.solidFrom(g2);
+    this.deco(new THREE.BoxGeometry(0.14, 9.2, 0.14), steel, 8.05, 4.8, -10.05, [0, 0, 0], false);
+    this.deco(new THREE.CylinderGeometry(0.1, 0.1, 9, 8), steel, 16, 6, -19.75, [0, 0, 0], false);
+    this.deco(new THREE.CylinderGeometry(0.08, 0.08, 1.6, 8), steel, 16, 10.4, -19.1, [Math.PI / 2, 0, 0], false);
+    this.deco(new THREE.CylinderGeometry(0.9, 0.5, 0.3, 20), steel, 16, 10.2, -18.3, [0, 0, 0], false);
+    this.deco(new THREE.CylinderGeometry(0.4, 0.4, 0.03, 16), this.mat(0x777777, 0.4, 0.8), 15, 0.22, -15.5);
+    for (const [x, y, z] of [[18.6, 0.6, -19.4], [19.2, 0.6, -19.4]]) this.deco(new THREE.CylinderGeometry(0.3, 0.3, 1.2, 12), this.mat(x > 19 ? 0xf28482 : 0x84a59d, 0.3), x, y + 0.2, z);
+    const puddle = this.mat(0xbfe3f0, 0.02, 0.1, { transparent: true, opacity: 0.45 });
+    for (const [x, z, r] of [[12, -14, 1.6], [17, -12, 1.1], [3, -7, 1.3], [-12, 4, 1.0]]) {
+      const p = new THREE.Mesh(new THREE.CircleGeometry(r, 24), puddle);
+      p.rotation.x = -Math.PI / 2;
+      p.position.set(x, x > 8 && z < -10 ? 0.215 : 0.012, z);
+      this.scene.add(p);
+    }
+    // Floor drain (where every roach was born) + bath mat
+    this.deco(new THREE.CylinderGeometry(0.55, 0.55, 0.03, 20), steel, -2, 0.015, 0, [0, 0, 0], false);
+    for (let i = -2; i <= 2; i++) this.deco(new THREE.BoxGeometry(0.85, 0.035, 0.06), this.mat(0x222222), -2, 0.02, i * 0.18, [0, 0, 0], false);
+    const mat = new THREE.Mesh(new THREE.PlaneGeometry(5, 3), this.mat(0x9ad1c6, 1));
+    mat.rotation.x = -Math.PI / 2;
+    mat.position.set(1, 0.02, 10);
+    this.scene.add(mat);
+    // Pail and water scoop (baldi + gayung) under a wall tap
+    this.box({ x: 24, z: -6, w: 2.4, d: 2.4, y0: 0, h: 2.4, color: 0xd62828, rough: 0.4, round: 0.9 });
+    this.deco(new THREE.CylinderGeometry(1.05, 1.05, 0.05, 24), this.mat(0x9fd3e6, 0.05, 0, { transparent: true, opacity: 0.8 }), 24, 2.2, -6, [0, 0, 0], false);
+    this.deco(new THREE.CylinderGeometry(0.45, 0.4, 0.5, 14), this.mat(0x1d7bd6, 0.4), 23.6, 2.45, -5.7);
+    this.deco(new THREE.CylinderGeometry(0.06, 0.06, 1.3, 8), this.mat(0x1d7bd6, 0.4), 24.3, 2.6, -5.4, [0.9, 0, 0]);
+    this.deco(new THREE.CylinderGeometry(0.1, 0.1, 1.0, 8), steel, hx - 0.5, 5, -6, [0, 0, Math.PI / 2], false);
+    // Washing machine + laundry basket + shelf of shampoo bottles
+    this.box({ x: 24, z: 6, w: 4.2, d: 4, y0: 0, h: 5, mat: white, round: 0.25, surface: true });
+    this.deco(new THREE.TorusGeometry(1.2, 0.15, 10, 28), this.mat(0xb0b6bc, 0.3, 0.6), 21.85, 2.5, 6, [0, Math.PI / 2, 0], false);
+    this.deco(new THREE.CircleGeometry(1.1, 28), this.mat(0x2b3a44, 0.1, 0.3), 21.88, 2.5, 6, [0, -Math.PI / 2, 0], false);
+    this.box({ x: -25, z: 8, w: 2.6, d: 2.6, y0: 0, h: 2.6, color: 0x8ab17d, rough: 0.8, round: 0.5, surface: true });
+    for (const y of [3.4, 6.4]) {
+      this.box({ x: -27.2, z: 0, w: 1.4, d: 5, y0: y, h: 0.18, mat: steel, surface: true, round: 0.02 });
+      [[-1.4, 0xff70a6], [-0.6, 0x70d6ff], [0.4, 0xffd670], [1.3, 0xe9ff70]].forEach(([dz, c]) => this.deco(new THREE.CylinderGeometry(0.25, 0.28, 1.1, 10), this.mat(c, 0.3), -27.3, y + 0.75, dz));
+    }
+    // Towel rail with towels, small frosted window, exhaust fan, long ceiling lights
+    this.deco(new THREE.CylinderGeometry(0.06, 0.06, 6, 8), steel, -14, 8, hz - 0.35, [0, 0, Math.PI / 2], false);
+    for (const [x, c] of [[-15.5, 0xf4a261], [-12.5, 0x2a9d8f]]) this.deco(new RoundedBoxGeometry(2.4, 5, 0.3, 2, 0.12), this.mat(c, 1), x, 5.6, hz - 0.4);
+    this.windowOn('w', -12, 12, 6, 2.6, true);
+    this.deco(new THREE.CylinderGeometry(1, 1, 0.2, 20), this.mat(0xeeeeee, 0.5), 4, ROOM.height - 0.1, -12, [0, 0, 0], false);
+    this.deco(new THREE.PlaneGeometry(5, 10.5), this.mat(0xa77a52, 0.6), 2, 5.25, hz - 0.03, [0, Math.PI, 0]); // door
+    this.ceilingLight(-10, -4, 0xeaf4ff, true);
+    this.ceilingLight(10, 6, 0xeaf4ff, true);
+    this.plant(-26.6, 17.5, 'snake', 0, 0.7);
+    this.floorHazards();
+  }
+
+  ceilingFan(x, z) {
+    const y = 14.3;
+    this.deco(new THREE.CylinderGeometry(0.08, 0.08, ROOM.height - y, 6), this.mat(0xeeeeee, 0.4), x, (ROOM.height + y) / 2, z, [0, 0, 0], false);
+    this.deco(new THREE.CylinderGeometry(0.55, 0.45, 0.45, 18), this.mat(0xf2f2f2, 0.3, 0.2), x, y, z, [0, 0, 0], false);
+    const blades = new THREE.Group();
+    blades.position.set(x, y - 0.1, z);
+    for (let i = 0; i < 3; i++) {
+      const b = new THREE.Mesh(new RoundedBoxGeometry(3.4, 0.06, 0.65, 2, 0.03), this.mat(0xf5f5f0, 0.5));
+      b.position.x = 2.1;
+      b.rotation.x = 0.12;
+      const arm = new THREE.Group();
+      arm.rotation.y = (i / 3) * Math.PI * 2;
+      arm.add(b);
+      blades.add(arm);
+    }
+    this.scene.add(blades);
+    blades.updateWorldMatrix(true, true);
+    const fb = new THREE.Box3().setFromObject(blades);
+    this.solids.push({ minX: x - 3.6, maxX: x + 3.6, minY: fb.min.y, maxY: fb.max.y, minZ: z - 3.6, maxZ: z + 3.6 });
+    blades.userData.dynamic = true;
+    this.fans.push({ obj: blades, axis: 'y', speed: 6 });
   }
 
   // Ubat gegat (mothballs) in sneaky spots, and baited roach traps on the floor
@@ -1193,7 +1582,7 @@ export class World {
       g.fillStyle = r;
       g.fillRect(0, 0, w, h);
     });
-    for (const [x, z] of [[-18.6, -17.7], [-27.2, -14.6], [27.2, 19.2]]) {
+    for (const [x, z] of this.layout.mothballs.slice(0, this.opts.mothballs ?? 3)) {
       for (let i = 0; i < 6; i++) {
         const r = 0.11 + Math.random() * 0.05;
         const m = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 16), ball);
@@ -1226,7 +1615,7 @@ export class World {
     const cardMat = this.mat(0xffffff, 0.85, 0, { map: card });
     const inside = this.mat(0x6b4a2a, 0.9);
     const glue = new THREE.MeshPhysicalMaterial({ color: 0xffe9a3, roughness: 0.05, clearcoat: 1, transmission: 0, transparent: true, opacity: 0.9 });
-    for (const [x, z, alongX] of [[-5, -11, false], [7, 7.2, true], [23.6, 9.5, false]]) {
+    for (const [x, z, alongX] of this.layout.traps.slice(0, this.opts.traps ?? 3)) {
       const L = 2.2, W = 1.3, H = 0.85;
       const g = new THREE.Group();
       g.position.set(x, 0, z);

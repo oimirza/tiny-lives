@@ -174,6 +174,16 @@ export class Foods {
     this.reset();
   }
 
+  // Move the snacks to this room's spots (same order as DEFS)
+  place(spots) {
+    this.items.forEach((f, i) => {
+      const s = spots?.[i];
+      if (!s) return;
+      [f.x, f.y, f.z] = s;
+      f.group.position.set(f.x, f.y, f.z);
+    });
+  }
+
   reset() {
     for (const f of this.items) {
       f.remaining = f.protein;

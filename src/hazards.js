@@ -203,6 +203,12 @@ export class Person {
       const brow = add(new THREE.BoxGeometry(0.34, 0.07, 0.08), hair, 0.31 * s, 0.33, 0.86, head);
       brow.rotation.z = -0.12 * s;
       this[s < 0 ? 'browL' : 'browR'] = brow;
+      // closed eyelids (only while he sleeps)
+      const lid = add(sph(0.16, 10, 8), skin, 0.31 * s, 0.13, 0.82, head);
+      lid.scale.set(1, 0.9, 0.7);
+      lid.visible = false;
+      lid.userData.keep = true;
+      (this.lids ||= []).push(lid);
     }
     const nose = add(new THREE.ConeGeometry(0.15, 0.4, 10), skin, 0, -0.08, 0.98, head);
     nose.rotation.x = Math.PI / 2 + 0.3;
@@ -262,7 +268,15 @@ export class Person {
   }
 
   reset() {
-    this.pos = new THREE.Vector3(0, 0, 2);
+    if (this.sleepSolids) for (const s of this.sleepSolids) this.world.removeSolid(s);
+    this.sleepSolids = null;
+    this.asleep = false;
+    this.upper.rotation.set(0, 0, 0);
+    this.upper.scale.set(1, 1, 1);
+    for (const f of this.feet) f.g.rotation.set(0, 0, 0);
+    for (const l of this.lids) l.visible = false;
+    const ps = this.world.layout?.personStart || [0, 2];
+    this.pos = new THREE.Vector3(ps[0], 0, ps[1]);
     this.facing = -Math.PI / 2;
     this.phase = 0;
     this.move = 0;
@@ -318,8 +332,105 @@ export class Person {
     return this.world.lineOfSight(eye, new THREE.Vector3(roach.pos.x, roach.pos.y + 0.12, roach.pos.z));
   }
 
+  // ---------------------------------------------------------------- Asleep (night level)
+  // He dozed off on a mat in front of the TV, head on a pillow by x=5.8, feet towards the TV.
+  // You can climb over him... carefully. Crashes, scurrying near his head or a bug on him wake him up.
+  goSleep() {
+    this.asleep = true;
+    this.sleepT = 0;
+    this.disturb = 0;
+    this.onHim = 0;
+    this.state = 'patrol';
+    this.suspicion = 0;
+    this.sleepSolids = [
+      { minX: 4.4, maxX: 7.0, minY: 0, maxY: 2.2, minZ: 9.4, maxZ: 11.6 }, // head
+      { minX: 7.0, maxX: 13.2, minY: 0, maxY: 2.3, minZ: 8.8, maxZ: 12.2 }, // chest + belly
+      { minX: 13.2, maxX: 20.2, minY: 0, maxY: 1.5, minZ: 9.0, maxZ: 12.0 }, // legs
+    ];
+    for (const s of this.sleepSolids) this.world.addSolid(s);
+    for (const l of this.lids) l.visible = true;
+    this.cone.g.visible = false;
+    this.ring.visible = this.disc.visible = false;
+    this.sleepPose();
+  }
+
+  sleepPose() {
+    const headDir = new THREE.Vector3(-1, 0, 0), up = new THREE.Vector3(0, 1, 0);
+    const X = new THREE.Vector3().crossVectors(headDir, up);
+    const O = new THREE.Vector3(19.85, 1.1, 10.5);
+    this.pos.set(O.x - 8, 0, O.z);
+    this.upper.position.copy(O);
+    this.upper.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, headDir, up));
+    this.upper.scale.set(1, 1, 1 + Math.sin(this.sleepT * 1.4) * 0.035); // breathing
+    const arm = this.arms[1];
+    arm.p.rotation.set(-0.7, 0, 0);
+    arm.elbow.rotation.set(-1.3, 0, 0); // hand resting on his belly
+    this.arms[0].p.rotation.set(0, 0, 0.05);
+    this.arms[0].elbow.rotation.set(-0.1, 0, 0);
+    const footQ = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), up));
+    for (let i = 0; i < 2; i++) {
+      const side = i === 0 ? 0.78 : -0.78;
+      const hip = new THREE.Vector3(O.x - 8, O.y, O.z).addScaledVector(X, side);
+      const knee = hip.clone().add(new THREE.Vector3(3.55, 0.9 + i * 0.5, 0));
+      const ankle = hip.clone().add(new THREE.Vector3(7.0, -0.35, 0));
+      placeSeg(this.thighs[i], hip, knee);
+      placeSeg(this.shins[i], knee, ankle);
+      this.knees[i].position.copy(knee);
+      const f = this.feet[i].g;
+      f.quaternion.copy(footQ);
+      f.position.set(ankle.x + 0.35, 0.75, ankle.z);
+    }
+    this.mouth.scale.y = 1.5 + Math.sin(this.sleepT * 1.4) * 0.8; // snoring
+    this.browL.rotation.z = 0.12;
+    this.browR.rotation.z = -0.12;
+    this.slipper.visible = false;
+    setIcon(this.icon, 'Zz', '#5b6cff', 0.6 + 0.4 * Math.sin(this.sleepT * 2));
+    this.icon.position.set(5.8, 4.2 + Math.sin(this.sleepT) * 0.3, 10.5);
+  }
+
+  updateAsleep(dt, roach, game) {
+    this.sleepT += dt;
+    this.seenNow = false;
+    if (!roach.dead && !roach.inNest) {
+      const onTop = this.sleepSolids.some((s) => roach.pos.x > s.minX - 0.1 && roach.pos.x < s.maxX + 0.1 && roach.pos.z > s.minZ - 0.1 && roach.pos.z < s.maxZ + 0.1 && roach.pos.y > s.maxY - 0.35);
+      const climbing = roach.climb && this.sleepSolids.includes(roach.climb.solid);
+      this.onHim = onTop || climbing ? this.onHim + dt : Math.max(0, this.onHim - dt);
+      const dHead = Math.hypot(roach.pos.x - 5.8, roach.pos.z - 10.5);
+      if (roach.noise > 0.3 && dHead < 6) this.disturb += dt * roach.noise * 1.6;
+      else this.disturb = Math.max(0, this.disturb - dt * 0.3);
+      if (this.onHim > (dHead < 2.5 ? 0.25 : 0.9)) return this.wake(game, roach.pos, 'Something is crawling on him! HE WOKE UP!');
+      if (this.disturb > 1) return this.wake(game, roach.pos, 'Too noisy! HE WOKE UP!');
+    }
+    this.sleepPose();
+    if (Math.random() < dt * 0.5) this.sfx.snore?.();
+  }
+
+  wake(game, at, msg) {
+    if (!this.asleep) return;
+    this.asleep = false;
+    for (const s of this.sleepSolids) this.world.removeSolid(s);
+    this.sleepSolids = null;
+    for (const l of this.lids) l.visible = false;
+    this.upper.rotation.set(0, 0, 0);
+    this.upper.scale.set(1, 1, 1);
+    for (const f of this.feet) f.g.rotation.set(0, 0, 0);
+    // he sits up and gets off the mat
+    this.pos.set(10, 0, 14.8);
+    this.world.pushOut(this.pos, 1.5, 14);
+    this.facing = Math.atan2(at.x - this.pos.x, at.z - this.pos.z);
+    this.cone.g.visible = true;
+    this.suspicion = 0.6;
+    this.poi.set(at.x, 0, at.z);
+    this.state = 'investigate';
+    this.lookTimer = 6;
+    this.sfx.suspicious();
+    game?.shake(0.15);
+    game?.warn(msg);
+  }
+
   // Something (the cat, a noise) points the human at a spot.
   hear(pos, amount) {
+    if (this.asleep) { if (amount >= 0.5) this.wake(this.game, pos, 'CRASH! The noise woke him up!'); return; }
     if (this.state === 'alert' || this.state === 'panic') return;
     this.suspicion = Math.min(0.95, Math.max(this.suspicion, 0.35) + amount);
     this.poi.set(pos.x, 0, pos.z);
@@ -337,6 +448,8 @@ export class Person {
   }
 
   update(dt, roach, game) {
+    this.game = game;
+    if (this.asleep) return this.updateAsleep(dt, roach, game);
     this.t += dt;
     this.attackCool -= dt;
     this.panicCool -= dt;
@@ -429,6 +542,7 @@ export class Person {
     }
   }
 
+  route() { return this.world.layout?.waypoints || WAYPOINTS; }
   walk(x, z, speed, dt, arriveR) { return walkTo(this, x, z, speed * (this.speedMul || 1), dt, arriveR, 1.5, 14); }
   idle(dt) { this.move += (0 - this.move) * (1 - Math.exp(-6 * dt)); }
 
@@ -437,10 +551,10 @@ export class Person {
       this.waitTimer -= dt;
       this.idle(dt);
       this.facing += Math.sin(this.t * 0.9) * dt * 0.8;
-      if (this.waitTimer <= 0) this.wp = (this.wp + 1 + Math.floor(Math.random() * 2)) % WAYPOINTS.length;
+      if (this.waitTimer <= 0) this.wp = (this.wp + 1 + Math.floor(Math.random() * 2)) % this.route().length;
       return;
     }
-    const [x, z] = WAYPOINTS[this.wp];
+    const [x, z] = this.route()[this.wp % this.route().length];
     if (this.walk(x, z, 2.0, dt, 1.0)) this.waitTimer = rand(2, 4.5);
   }
 
@@ -656,6 +770,7 @@ export class Person {
 
   // Solid parts the roach bumps into: feet (toes + heel) and lower legs.
   colliders(out) {
+    if (this.asleep) return; // lying down: his body is world solids instead
     const fwd = this.fwd();
     for (const f of this.feet) {
       const p = f.g.position;

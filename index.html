@@ -67,6 +67,14 @@
 
       /* ---- Target tiles (top right) ---- */
       .stats { position: absolute; top: 12px; right: 12px; display: flex; gap: 8px; }
+      /* round radar minimap under the stat tiles: turns with you, you're the arrow in the middle */
+      #minimapWrap { position: absolute; top: 96px; right: 12px; width: 124px; height: 124px; pointer-events: none; }
+      #minimap { width: 100%; height: 100%; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 4px 0 #9a7fd6, 0 6px 14px rgba(0,0,0,0.35); background: rgba(30, 12, 60, 0.55); }
+      #mmHint { position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); font-size: 10px; font-weight: 700; color: #fff; padding: 2px 8px; border-radius: 10px;
+        background: linear-gradient(180deg, #ffcf3a, #ff8a1f); -webkit-text-stroke: 0; box-shadow: 0 2px 0 #b0570c; animation: hintPulse 1s ease-in-out infinite; white-space: nowrap; }
+      @keyframes hintPulse { 50% { transform: translateX(-50%) scale(1.12); } }
+      body.touch #minimapWrap { top: 76px; width: 96px; height: 96px; }
+      @media (max-height: 520px) { #minimapWrap { top: 70px; width: 92px; height: 92px; } }
       .tile { width: 70px; padding: 6px 4px 6px; border-radius: 16px; text-align: center; background: linear-gradient(180deg, #ffffff 0%, #e9ddff 100%);
         border: 3px solid #fff; box-shadow: 0 5px 0 #9a7fd6, 0 8px 14px rgba(0,0,0,0.3); color: var(--ink); }
       .tile .ti { font-size: 24px; line-height: 1.1; }
@@ -181,11 +189,10 @@
       .bigTitle { font-size: 76px; }
       .logo { margin: 0 auto -6px; width: min(100%, 520px); line-height: 0; }
       .logo svg { width: 100%; height: auto; overflow: visible; filter: drop-shadow(0 6px 10px rgba(40, 0, 70, 0.35)); }
-      .logo #tlRoach { animation: tlWiggle 2.6s ease-in-out infinite; transform-box: fill-box; }
       .logo #tlHeart { animation: tlBeat 1.3s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
       @keyframes tlBeat { 0%, 60%, 100% { scale: 1; } 30% { scale: 1.18; } }
       @keyframes tlWiggle { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
-      @media (prefers-reduced-motion: reduce) { .logo #tlRoach, .logo #tlHeart { animation: none; } }
+      @media (prefers-reduced-motion: reduce) { .logo #tlHeart { animation: none; } }
       .tagline { font-family: Caveat, 'Segoe Print', cursive; font-weight: 700; font-size: 30px; color: #fff; margin: 0 0 4px; letter-spacing: 0.5px;
         text-shadow: 0 2px 0 var(--ink), 0 0 12px rgba(255, 214, 120, 0.55); }
       .dots { display: inline-block; animation: dots 1.4s steps(4) infinite; overflow: hidden; vertical-align: bottom; width: 1.1em; text-align: left; }
@@ -391,6 +398,7 @@
         <div id="objective"></div>
       </div>
       <div id="compass" class="hidden"><div class="arrow"></div></div>
+      <div id="minimapWrap"><canvas id="minimap" width="256" height="256"></canvas><div id="mmHint" class="hidden">HINT</div></div>
 
       <div class="stats">
         <div class="tile" id="tileCrumbs"><div class="ti">🍞</div><b id="crumbs">0</b><small>CRUMBS</small></div>
@@ -455,31 +463,9 @@
               <path d="M0 12 C-20 -1 -17 -17 -7 -17 C-3 -17 0 -14 0 -10 C0 -14 3 -17 7 -17 C17 -17 20 -1 0 12 Z" fill="#ff4f7b" stroke="#4a1466" stroke-width="5" stroke-linejoin="round" />
               <ellipse cx="-7" cy="-9" rx="3.5" ry="2.2" fill="#ffffff" opacity="0.8" />
             </g>
-            <!-- Lipas climbing the L -->
-            <g id="tlRoach" transform="translate(304 116) rotate(-16) scale(0.9)">
-              <g stroke="#4a1466" stroke-width="3.5" stroke-linecap="round" fill="none">
-                <path d="M-6 -16 Q-14 -40 -30 -50" />
-                <path d="M6 -16 Q14 -40 32 -48" />
-                <path d="M-11 -2 L-24 -10 L-30 -2" />
-                <path d="M-12 8 L-26 8 L-32 16" />
-                <path d="M-10 18 L-22 28 L-24 38" />
-                <path d="M11 -2 L24 -10 L30 -2" />
-                <path d="M12 8 L26 8 L32 16" />
-                <path d="M10 18 L22 28 L24 38" />
-              </g>
-              <ellipse cx="0" cy="10" rx="15" ry="23" fill="url(#tlShell)" stroke="#4a1466" stroke-width="4.5" />
-              <path d="M0 -8 L0 32" stroke="#4a1466" stroke-width="2.5" opacity="0.6" />
-              <ellipse cx="-5" cy="2" rx="3.5" ry="9" fill="#ffffff" opacity="0.35" />
-              <ellipse cx="0" cy="-15" rx="11" ry="8" fill="#5a2a12" stroke="#4a1466" stroke-width="4" />
-              <circle cx="-4.5" cy="-17" r="3.6" fill="#ffffff" />
-              <circle cx="4.5" cy="-17" r="3.6" fill="#ffffff" />
-              <circle cx="-4" cy="-18" r="1.8" fill="#1b0d26" />
-              <circle cx="5" cy="-18" r="1.8" fill="#1b0d26" />
-            </g>
           </svg>
         </h1>
         <p class="tagline">Andai esok masih milik kita..</p>
-        <p class="tag">A dad has to feed his family. Everyone in the house wants him dead.</p>
         <div class="goals">
           <div class="goal"><span>🍞</span>Eat every crumb</div>
           <div class="goal"><span>🙈</span>Don't get seen</div>

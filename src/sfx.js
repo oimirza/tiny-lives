@@ -201,6 +201,50 @@ export class Sfx {
     }
   }
 
+  // Chipmunk crying: wobbling, falling wails with sniffly breaths between them
+  sob(voice = 'kids', dur = 2) {
+    const c = this.ctx;
+    if (!c) return;
+    const base = { kids: 1250, mak: 820, ayah: 560 }[voice] || 800;
+    let t = c.currentTime + 0.02;
+    const end = t + dur;
+    while (t < end) {
+      const len = 0.35 + Math.random() * 0.35;
+      const o = c.createOscillator();
+      o.type = 'triangle';
+      const p = base * (1.05 + Math.random() * 0.2);
+      o.frequency.setValueAtTime(p, t);
+      o.frequency.linearRampToValueAtTime(p * 0.62, t + len); // "waaah" falling
+      const vib = c.createOscillator();
+      vib.frequency.value = 9;
+      const vg = c.createGain();
+      vg.gain.value = p * 0.04;
+      vib.connect(vg).connect(o.frequency);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(voice === 'kids' ? 0.1 : 0.13, t + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      const bp = c.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = base * 1.4;
+      bp.Q.value = 1.5;
+      o.connect(bp).connect(g).connect(this.master);
+      o.start(t); vib.start(t);
+      o.stop(t + len + 0.02); vib.stop(t + len + 0.02);
+      t += len + 0.06;
+      // sniff
+      this.noise(0.08, { type: 'highpass', freq: 3000, gain: 0.05, delay: t - c.currentTime });
+      t += 0.12 + Math.random() * 0.1;
+    }
+  }
+
+  // Low, rumbly snore (the human asleep in front of the TV)
+  snore() {
+    if (!this.ctx) return;
+    this.noise(1.1, { type: 'lowpass', freq: 260, freqEnd: 140, gain: 0.07, attack: 0.4 });
+    this.tone(70, 1.0, { type: 'sawtooth', gain: 0.025, freqEnd: 55, delay: 0.1 });
+  }
+
   count(n) { this.tone(n > 0 ? 660 : 990, n > 0 ? 0.18 : 0.45, { type: 'square', gain: 0.12 }); if (n === 0) this.tone(1320, 0.4, { type: 'triangle', gain: 0.1, delay: 0.05 }); }
   // little high-pitched happy chirps (the roach kids)
   chirp(n = 3) { for (let i = 0; i < n; i++) this.tone(1400 + Math.random() * 900, 0.08, { type: 'triangle', freqEnd: 2200 + Math.random() * 600, gain: 0.08, delay: i * 0.11 }); }

@@ -160,6 +160,112 @@ export class Roach {
     this.inner.add(mid);
   }
 
+  // ---------------------------------------------------------------- Cartoon face (cutscenes only)
+  // Big googly eyes that squint, blink and widen, eyebrows, a mouth that smiles / frowns / opens, tears and blush.
+  addFace() {
+    const f = (this.face = new THREE.Group());
+    f.position.set(0, 0.11, 0.35);
+    f.scale.setScalar(1.9); // big cartoon eyes, readable in the close-ups
+    const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 });
+    const black = new THREE.MeshBasicMaterial({ color: 0x14080a });
+    const tearMat = new THREE.MeshStandardMaterial({ color: 0x8fdcff, roughness: 0.05, emissive: 0x2a88c0, emissiveIntensity: 0.6 });
+    this.eyes = [];
+    for (const s of [-1, 1]) {
+      const e = new THREE.Group();
+      e.position.set(0.043 * s, 0.025, 0);
+      f.add(e);
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.042, 18, 14), white);
+      ball.scale.set(1, 1.2, 0.75);
+      e.add(ball);
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.021, 12, 10), black);
+      pupil.position.set(-0.004 * s, -0.006, 0.028);
+      e.add(pupil);
+      const shine = new THREE.Mesh(new THREE.SphereGeometry(0.0075, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      shine.position.set(0.008, 0.008, 0.048);
+      pupil.add(shine);
+      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.046, 0.009, 0.012), black);
+      brow.position.set(0.043 * s, 0.075, 0.022);
+      f.add(brow);
+      const tear = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 6), tearMat);
+      tear.scale.set(1, 1.6, 1);
+      tear.visible = false;
+      f.add(tear);
+      const blush = new THREE.Mesh(new THREE.CircleGeometry(0.018, 14), new THREE.MeshBasicMaterial({ color: 0xff6f91, transparent: true, opacity: 0 }));
+      blush.position.set(0.075 * s, -0.025, 0.012);
+      f.add(blush);
+      this.eyes.push({ e, pupil, brow, tear, blush, s, tt: Math.random() });
+    }
+    // mouth: an arc (smile/frown) plus a dark open-mouth shape for shouting and crying
+    this.mouthArc = new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.0055, 6, 18, Math.PI), black);
+    this.mouthArc.position.set(0, -0.035, 0.03);
+    this.mouthOpen = new THREE.Mesh(new THREE.SphereGeometry(0.02, 14, 10), new THREE.MeshBasicMaterial({ color: 0x5a0f1a }));
+    this.mouthOpen.position.set(0, -0.04, 0.026);
+    this.mouthOpen.scale.set(1.2, 0.01, 0.4);
+    f.add(this.mouthArc, this.mouthOpen);
+    f.traverse((o) => { o.userData.keep = true; });
+    f.visible = false;
+    this.inner.add(f);
+    this.mood = 'neutral';
+    this.talking = false;
+    this.faceK = { open: 1, brow: 0, by: 0, smile: 0.3, mopen: 0, tears: 0, blush: 0, pupil: 1 };
+    this.blinkT = 2 + Math.random() * 2;
+  }
+  showFace(on) { if (this.face) this.face.visible = on; }
+  setMood(m, talking = false) { this.mood = m || 'neutral'; this.talking = talking; }
+
+  updateFace(dt, time, fromPose = true) {
+    if (!this.face || !this.face.visible) return;
+    const M = {
+      neutral: { open: 1, brow: 0, by: 0, smile: 0.35, mopen: 0, tears: 0, blush: 0, pupil: 1 },
+      happy: { open: 0.85, brow: 0.12, by: 0.005, smile: 1, mopen: 0.25, tears: 0, blush: 0.7, pupil: 1.05 },
+      excited: { open: 1.15, brow: 0.2, by: 0.016, smile: 1, mopen: 0.85, tears: 0, blush: 0.9, pupil: 1.2 },
+      sad: { open: 0.6, brow: 0.55, by: 0, smile: -0.9, mopen: 0, tears: 0, blush: 0, pupil: 1.15 },
+      worried: { open: 1.05, brow: 0.45, by: 0.012, smile: -0.45, mopen: 0.15, tears: 0, blush: 0, pupil: 0.8 },
+      proud: { open: 0.75, brow: -0.3, by: -0.004, smile: 0.9, mopen: 0, tears: 0, blush: 0, pupil: 1 },
+      cry: { open: 0.14, brow: 0.6, by: 0.004, smile: -1, mopen: 1, tears: 1, blush: 0.5, pupil: 1 },
+      joy: { open: 0.22, brow: 0.2, by: 0.008, smile: 1, mopen: 0.5, tears: 1, blush: 1, pupil: 1 },
+      love: { open: 0.7, brow: 0.15, by: 0.006, smile: 0.85, mopen: 0, tears: 0, blush: 1.2, pupil: 1.1 },
+      shock: { open: 1.3, brow: 0.3, by: 0.024, smile: 0, mopen: 1, tears: 0, blush: 0, pupil: 0.5 },
+      dead: { open: 0.06, brow: 0.2, by: 0, smile: -0.5, mopen: 0.2, tears: 0, blush: 0, pupil: 1 },
+    }[this.mood] || {};
+    const K = this.faceK, k = 1 - Math.exp(-10 * dt);
+    for (const key of Object.keys(K)) K[key] += ((M[key] ?? K[key]) - K[key]) * k;
+    // blink now and then (not while crying or "sleeping")
+    this.blinkT -= dt;
+    let open = K.open;
+    if (this.blinkT < 0.12 && K.open > 0.3) open *= 0.1;
+    if (this.blinkT < 0) this.blinkT = 2 + Math.random() * 3;
+    const sob = K.tears > 0.5 ? Math.sin(time * 18) * 0.01 : 0;
+    for (const E of this.eyes) {
+      E.e.scale.set(1, Math.max(0.06, open), 1);
+      E.pupil.scale.setScalar(K.pupil);
+      E.pupil.position.x = -0.004 * E.s + Math.sin(time * 0.7 + E.s) * 0.004;
+      E.brow.rotation.z = -E.s * K.brow;
+      E.brow.position.y = 0.074 + K.by + (open < 0.4 ? -0.014 : 0) + sob;
+      E.blush.material.opacity = Math.min(0.75, K.blush * 0.6);
+      E.tear.visible = K.tears > 0.4;
+      if (E.tear.visible) {
+        E.tt = (E.tt + dt * 1.6) % 1;
+        E.tear.position.set(0.05 * E.s + E.s * E.tt * 0.02, 0.0 - E.tt * 0.11, 0.03 - E.tt * 0.01);
+        E.tear.scale.setScalar(1 - E.tt * 0.4).multiply(new THREE.Vector3(1, 1.6, 1));
+      }
+    }
+    // mouth: arc flips between smile and frown; open mouth flaps while talking
+    const sm = K.smile;
+    this.mouthArc.rotation.z = sm >= 0 ? Math.PI : 0;
+    this.mouthArc.scale.set(1, Math.max(0.15, Math.abs(sm)) * 0.9, 1);
+    this.mouthArc.position.y = sm >= 0 ? -0.03 : -0.05;
+    const flap = this.talking ? 0.35 + Math.abs(Math.sin(time * 16)) * 0.65 : 0;
+    const mo = Math.max(K.mopen * (this.talking ? 0.6 : 1), flap) + (K.tears > 0.5 ? Math.abs(Math.sin(time * 9)) * 0.3 : 0);
+    this.mouthOpen.scale.set(1.2 + mo * 0.3, Math.max(0.01, mo * 0.9), 0.4);
+    this.mouthOpen.visible = mo > 0.05;
+    this.mouthArc.visible = mo < 0.6;
+    // sad = droopy antennae, sobbing = little shakes
+    const droop = (this.mood === 'sad' || this.mood === 'cry' || this.mood === 'dead') ? 0.55 : this.mood === 'excited' ? -0.25 : 0;
+    if (fromPose) for (const A of this.antennae) A.pivot.rotation.x += droop;
+    if (fromPose && K.tears > 0.5 && this.mood === 'cry') this.inner.rotation.z = Math.sin(time * 20) * 0.04;
+  }
+
   // Animate without physics (cutscenes / the family waiting at home)
   pose(dt, time, walk = 0, hop = 0) {
     this.gait += dt * walk * 9;
@@ -178,6 +284,7 @@ export class Roach {
     this.inner.position.y = hop;
     this.inner.rotation.set(0, 0, 0);
     this.inner.visible = true;
+    this.updateFace(dt, time);
     this.orient(dt);
   }
 
@@ -255,7 +362,8 @@ export class Roach {
     // how loud we are (the human and cat can hear this)
     this.noise = !this.onGround && this.open > 0.5 ? 1 : this.eating ? 0.5 : this.speed > 5 ? 0.45 : this.speed > 0.5 ? 0.1 : 0;
     // walking forward into a wall or the side of furniture: start climbing it
-    if (f > 0.3) this.tryClimb(); // also works mid-flight: fly at a wall and grab on
+    this.climbCool = Math.max(0, (this.climbCool || 0) - dt);
+    if (f > 0.3 && this.climbCool <= 0) this.tryClimb(); // also works mid-flight: fly at a wall and grab on
     if (this.climb) return;
 
     // Animation
@@ -385,11 +493,18 @@ export class Roach {
   }
 
   // Leave the wall; heading = the direction we were crawling, flattened (or away from the wall).
-  detach(jump) {
+  // backing = we reversed down onto the floor: keep facing the wall so "back" carries on moving away from it
+  // (flipping round made the camera swing 180° and the controls feel like they went in circles).
+  detach(jump, backing = false) {
     const n = this.climb.n;
     const d = this.wallDir();
-    const hx = d.x + n.x * 0.6, hz = d.z + n.z * 0.6;
+    const t = this.wallTangent();
+    const side = Math.sin(this.climb.a);
+    let hx = d.x + n.x * 0.6, hz = d.z + n.z * 0.6;
+    if (backing) { hx = -n.x + t.x * side * 0.5; hz = -n.z + t.z * side * 0.5; }
+    else if (!jump && d.y < -0.3) { hx = n.x + t.x * side * 0.5; hz = n.z + t.z * side * 0.5; } // crawled head-first down
     this.heading = Math.atan2(hx, hz);
+    this.climbCool = 0.35; // don't instantly re-grab the wall we just left
     this.pos.addScaledVector(n, 0.06);
     if (jump) {
       this.vel.set(n.x * 4.5, 0, n.z * 4.5);
@@ -482,7 +597,7 @@ export class Roach {
     const g = this.world.groundAt(this.pos.x + c.n.x * 0.3, this.pos.z + c.n.z * 0.3, this.pos.y + 0.05);
     if (this.pos.y <= g) {
       this.pos.y = g;
-      if (dir.y * f < -0.1) { this.detach(false); this.onGround = true; this.orient(dt); return; } // walked down onto the floor
+      if (dir.y * f < -0.1) { this.detach(false, f < 0); this.onGround = true; this.orient(dt); return; } // walked down onto the floor
     }
     // other furniture can push us off the wall
     const before = this.pos.clone();

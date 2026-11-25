@@ -38,7 +38,8 @@ scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environmentIntensity = 0.3;
 renderer.toneMappingExposure = 0.95;
 
-scene.add(new THREE.HemisphereLight(0xfff4e0, 0x5a4532, 0.6));
+const hemiLight = new THREE.HemisphereLight(0xfff4e0, 0x5a4532, 0.6);
+scene.add(hemiLight);
 // Daylight coming in through the north window
 const sun = new THREE.DirectionalLight(0xfff0dc, 2.4);
 sun.position.set(14, 34, -26);
@@ -145,13 +146,6 @@ function autoResolution(dt) {
   else if (fps > 58 && curPR < maxPR - 0.01) setPR(Math.min(maxPR, curPR + 0.1));
 }
 
-// Warm ceiling lights (only a few: every point light costs on every pixel)
-for (const L of world.lamps) {
-  if (L.y < ROOM.height - 2) continue; // small lamps just glow (emissive shades), no real light
-  const pl = new THREE.PointLight(L.color, 110 * L.power, 32, 1.6);
-  pl.position.set(L.x, L.y, L.z);
-  scene.add(pl);
-}
 
 const roach = new Roach(scene, world);
 const broom = new Broom(scene, world, sfx);
@@ -177,13 +171,119 @@ const CRUMB_SPOTS = [
 ];
 // ---------------------------------------------------------------- Levels
 // hidden = how many crumbs go in sneaky spots; big = crumb size; beacon = glowing light beam above each crumb
+// loc = which room, time = lighting preset, traps/mothballs = how many hazards, sleeper = the human is asleep (night)
 const LEVELS = [
-  { name: 'Easy', crumbs: 10, hidden: 0, big: 2.4, beacon: false, human: 0.45, speed: 0.75, cat: 'sleep', car: false, tip: '10 big crumbs. Oyen the cat is fast asleep.' },
-  { name: 'Medium', crumbs: 16, hidden: 2, big: 1.8, beacon: false, human: 0.7, speed: 0.85, cat: 'lazy', car: false, tip: '16 crumbs. Oyen is awake... but lazy.' },
-  { name: 'Hard', crumbs: 24, hidden: 7, big: 1.4, beacon: false, human: 1, speed: 1, cat: 'normal', car: true, tip: '24 crumbs. The toy car joins the hunt.' },
-  { name: 'Expert', crumbs: 32, hidden: 14, big: 1.15, beacon: false, human: 1.2, speed: 1.1, cat: 'aggro', car: true, tip: '32 crumbs, many well hidden. Oyen gets zoomies.' },
-  { name: 'Master', crumbs: 40, hidden: 21, big: 1, beacon: false, human: 1.4, speed: 1.2, cat: 'aggro', car: true, tip: '40 crumbs. The whole house is out to get you.' },
+  { name: 'Easy', place: 'Living room · Morning', loc: 'living', time: 'morning', traps: 3, mothballs: 3, crumbs: 10, hidden: 0, big: 2.4, beacon: false, human: 0.45, speed: 0.75, cat: 'sleep', car: false, tip: 'Good morning! 10 big crumbs. Oyen the cat is fast asleep.' },
+  { name: 'Medium', place: 'Living room · Evening', loc: 'living', time: 'evening', traps: 4, mothballs: 3, crumbs: 14, hidden: 2, big: 1.8, beacon: false, human: 0.7, speed: 0.85, cat: 'lazy', car: false, tip: 'Evening. 14 crumbs. Oyen is awake... but lazy.' },
+  { name: 'Hard', place: 'Living room · Night', loc: 'living', time: 'night', traps: 5, mothballs: 4, sleeper: true, crumbs: 18, hidden: 5, big: 1.5, beacon: false, human: 1, speed: 1, cat: 'normal', car: true, tip: "Night. He fell asleep watching cartoons. Don't wake him! Oyen is prowling." },
+  { name: 'Expert', place: 'Bedroom · Late night', loc: 'bedroom', time: 'lamp', traps: 7, mothballs: 5, crumbs: 22, hidden: 9, big: 1.3, beacon: false, human: 1.2, speed: 1.1, cat: 'aggro', car: true, tip: "The bedroom. He can't sleep... and there are traps everywhere." },
+  { name: 'Master', place: 'Toilet & shower', loc: 'bathroom', time: 'bathroom', traps: 10, mothballs: 6, crumbs: 26, hidden: 12, big: 1.15, beacon: false, human: 1.4, speed: 1.2, cat: 'aggro', car: false, tip: 'The toilet. Slippery floor, 10 traps, and he is NOT happy.' },
 ];
+
+// ---------------------------------------------------------------- Time of day (lighting per level)
+const ENVS = {
+  morning: { glass: 0xcfeaff, hemi: [0xfff4e0, 0x5a4532, 0.65], sun: [0xfff0dc, 2.6], sunPos: [14, 34, -26], ceil: 0, lamps: 0, exposure: 1.0, envI: 0.32, fog: 0x2a2018 },
+  evening: { glass: 0xff9f55, hemi: [0xffcf9e, 0x4a3020, 0.42], sun: [0xff8a3d, 2.1], sunPos: [34, 12, -28], ceil: 0.45, lamps: 0.9, exposure: 0.95, envI: 0.2, fog: 0x2a1810 },
+  night: { glass: 0x0a1330, hemi: [0x5f78c0, 0x0c0c14, 0.12], sun: [0x7d98ff, 0.35], sunPos: [-10, 30, -30], ceil: 0, lamps: 0.35, exposure: 1.1, envI: 0.04, fog: 0x05060c, tv: true },
+  lamp: { glass: 0x0a1330, hemi: [0x5f78c0, 0x0c0c14, 0.15], sun: [0x8aa2ff, 0.45], sunPos: [44, 26, 2], ceil: 0, lamps: 1.1, exposure: 1.2, envI: 0.05, fog: 0x05060c },
+  bathroom: { glass: 0x1b2a48, hemi: [0xeaf4ff, 0x40505a, 0.55], sun: [0x9fb4ff, 0.25], sunPos: [-40, 30, -10], ceil: 1.1, lamps: 0, exposure: 1.0, envI: 0.34, fog: 0x1a2024 },
+};
+let envLights = [];
+let tvLight = null;
+function applyEnv(name) {
+  const E = ENVS[name];
+  hemiLight.color.setHex(E.hemi[0]);
+  hemiLight.groundColor.setHex(E.hemi[1]);
+  hemiLight.intensity = E.hemi[2];
+  sun.color.setHex(E.sun[0]);
+  sun.intensity = E.sun[1];
+  sun.position.set(...E.sunPos);
+  renderer.toneMappingExposure = E.exposure;
+  scene.environmentIntensity = E.envI;
+  scene.fog.color.setHex(E.fog);
+  scene.background.setHex(E.fog);
+  for (const m of world.windows) m.color.setHex(m.userData.frosted ? new THREE.Color(E.glass).lerp(new THREE.Color(0xffffff), 0.35).getHex() : E.glass);
+  for (const m of world.ceilingMats) m.emissiveIntensity = m.userData.on * E.ceil + 0.03;
+  // real point lights: ceiling lights when they're on, small table/floor lamps in the evening and at night
+  for (const l of envLights) scene.remove(l);
+  envLights = [];
+  let small = 0;
+  for (const L of world.lamps) {
+    const ceiling = L.y >= ROOM.height - 2;
+    const k = ceiling ? E.ceil : E.lamps;
+    if (k <= 0 || (!ceiling && small >= 3)) continue;
+    if (!ceiling) small++;
+    const pl = new THREE.PointLight(L.color, (ceiling ? 110 : 70) * L.power * k, ceiling ? 32 : 20, 1.6);
+    pl.position.set(L.x, L.y - (ceiling ? 0 : 0.3), L.z);
+    scene.add(pl);
+    envLights.push(pl);
+  }
+  // the TV left on, showing cartoons (lights the room in flickering colours)
+  if (tvLight) { scene.remove(tvLight); tvLight = null; }
+  if (E.tv && world.tvMat) {
+    tvLight = new THREE.PointLight(0x8fb6ff, 14, 22, 1.6);
+    tvLight.position.set(24.2, 5.2, 0);
+    scene.add(tvLight);
+  }
+  tvOn = !!(E.tv && world.tvMat);
+  setTVPicture();
+}
+
+// ---------------------------------------------------------------- Cartoon on the TV (drawn live on a canvas)
+const tvCanvas = document.createElement('canvas');
+tvCanvas.width = 256;
+tvCanvas.height = 144;
+const tvTex = new THREE.CanvasTexture(tvCanvas);
+tvTex.colorSpace = THREE.SRGBColorSpace;
+let tvOn = false, tvT = 0, tvDraw = 0;
+function setTVPicture() {
+  const m = world.tvMat;
+  if (!m) return;
+  const tvProp = world.props.find((p) => p.name === 'TV');
+  if (tvOn && !(tvProp && (tvProp.fallen || tvProp.anim))) {
+    m.map = tvTex;
+    m.emissiveMap = tvTex;
+    m.color.setHex(0xffffff);
+    m.emissive.setHex(0xffffff);
+    m.emissiveIntensity = 1.0;
+    m.needsUpdate = true;
+  }
+}
+function drawCartoon(t) {
+  const g = tvCanvas.getContext('2d'), W = 256, H = 144;
+  const scene = Math.floor(t / 4) % 3;
+  g.fillStyle = ['#6ec3ff', '#ffd36e', '#9be07a'][scene];
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = ['#5fbf5a', '#e89a3c', '#3f8f4f'][scene];
+  g.fillRect(0, H * 0.72, W, H * 0.28);
+  // sun with a face
+  g.fillStyle = '#ffe14d';
+  g.beginPath(); g.arc(214, 30, 18 + Math.sin(t * 3) * 2, 0, 7); g.fill();
+  // a bouncing cartoon blob character chasing a smaller one
+  const x1 = ((t * 60) % (W + 80)) - 40, x2 = x1 - 60 - Math.sin(t * 2) * 10;
+  const y1 = H * 0.72 - 22 - Math.abs(Math.sin(t * 6)) * 26, y2 = H * 0.72 - 28 - Math.abs(Math.sin(t * 5 + 1)) * 34;
+  for (const [x, y, r, c] of [[x1, y1, 16, '#ff5d8f'], [x2, y2, 24, '#7a5cff']]) {
+    g.fillStyle = c; g.beginPath(); g.ellipse(x, y, r, r * (0.9 + Math.sin(t * 12) * 0.08), 0, 0, 7); g.fill();
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(x - r * 0.3, y - r * 0.2, r * 0.28, 0, 7); g.arc(x + r * 0.3, y - r * 0.2, r * 0.28, 0, 7); g.fill();
+    g.fillStyle = '#111'; g.beginPath(); g.arc(x - r * 0.25, y - r * 0.2, r * 0.12, 0, 7); g.arc(x + r * 0.35, y - r * 0.2, r * 0.12, 0, 7); g.fill();
+  }
+  // big "BOING!" now and then
+  if (Math.sin(t * 1.3) > 0.85) { g.fillStyle = '#fff'; g.font = 'bold 26px sans-serif'; g.fillText('BOING!', 90, 40); }
+  tvTex.needsUpdate = true;
+  return ['#6ec3ff', '#ffd36e', '#9be07a'][scene];
+}
+function updateTV(dt) {
+  if (!tvOn) return;
+  const tvProp = world.props.find((p) => p.name === 'TV');
+  if (tvProp && (tvProp.fallen || tvProp.anim)) { if (tvLight) tvLight.intensity = 0; return; }
+  tvT += dt;
+  tvDraw -= dt;
+  if (tvDraw <= 0) {
+    tvDraw = 1 / 15;
+    const col = drawCartoon(tvT);
+    if (tvLight) { tvLight.color.set(col).lerp(new THREE.Color(0x7fa8ff), 0.55); tvLight.intensity = 10 + Math.random() * 7; }
+  }
+}
 let levelIdx = 0;
 let CRUMB_COUNT = 10;
 const MAX_CRUMBS = 40;
@@ -216,7 +316,7 @@ function openSpot(maxY) {
 }
 function scatterCrumbs() {
   const L = LEVELS[levelIdx];
-  const hidden = [...CRUMB_SPOTS].sort(() => Math.random() - 0.5).slice(0, L.hidden);
+  const hidden = [...world.layout.crumbSpots].sort(() => Math.random() - 0.5).slice(0, L.hidden);
   crumbs.forEach((c, i) => {
     const beam = c.userData.beam;
     if (i >= CRUMB_COUNT) { c.visible = false; beam.visible = false; return; }
@@ -240,6 +340,8 @@ const wife = new Roach(scene, world);
 wife.addBow();
 compactModel(wife.model);
 const kids = [0, 1, 2].map(() => { const k = new Roach(scene, world); k.model.scale.setScalar(0.55); compactModel(k.model); return k; });
+// cartoon faces (only shown in the cutscenes)
+for (const m of [roach, wife, ...kids]) m.addFace();
 const FAMILY = { wife: [21.35, 19.35], kids: [[19.75, 19.6], [20.4, 19.75], [21.0, 19.6]] };
 // The family lives *inside* the nest hole: they only come out for the goodbye and the homecoming.
 const family = [wife, ...kids];
@@ -385,7 +487,7 @@ function resetGame() {
   world.resetProps();
   foods.reset();
   scatterCrumbs();
-  Object.assign(game, { time: 0, protein: 0, crumbsEaten: 0, spotted: 0, messes: 0, difficulty: 0, deathTimer: 0, won: false });
+  Object.assign(game, { lastFind: 0, time: 0, protein: 0, crumbsEaten: 0, spotted: 0, messes: 0, difficulty: 0, deathTimer: 0, won: false });
   cam.yaw = 0;
   cam.pitch = 0.25;
   cam.fwd.set(0, 0, -1);
@@ -397,6 +499,9 @@ function resetGame() {
   world.nestGlow.visible = false;
   placeFamily(true);
   setFamilyVisible(false);
+  setFaces(false);
+  if (LEVELS[levelIdx].sleeper) person.goSleep();
+  setTVPicture();
 }
 
 // ---------------------------------------------------------------- Screens, saved progress
@@ -434,6 +539,8 @@ function buildMap() {
 function applyLevel() {
   const L = LEVELS[levelIdx];
   CRUMB_COUNT = L.crumbs;
+  if (world.setLocation(L.loc, { traps: L.traps, mothballs: L.mothballs, sleeper: !!L.sleeper })) foods.place(world.layout.foods);
+  applyEnv(L.time);
   person.sense = L.human;
   person.speedMul = L.speed;
   cat.mode = L.cat;
@@ -456,26 +563,36 @@ const DAD_HOME = new THREE.Vector3(20, NEST.y, 18.7);
 const DAD_OUT = new THREE.Vector3(20, NEST.y, 17.9);
 // Each line cuts to a shot: 'wide' (establishing), a close-up on the speaker ('kids' | 'mak' | 'ayah'),
 // or 'follow' (behind Dad as he leaves). Close-ups slowly push in, like an in-game movie.
+// mood = facial expression for each of them on that line (see Roach.updateFace); sob = cry instead of babble
 const INTRO_FULL = [
-  { t: 0, shot: 'wide', who: 'Anak-anak', ms: 'Ayah... kami lapar...', en: '' },
-  { t: 2.6, shot: 'kids', who: 'Anak-anak', ms: 'Dah tiga hari tak makan!', en: '' },
-  { t: 5.0, shot: 'mak', who: 'Mak', ms: 'Hati-hati, bang. Manusia tu garang... si Oyen pun ada.', en: '' },
-  { t: 8.4, shot: 'ayah', who: 'Ayah', ms: 'Jangan risau. Ayah keluar cari makanan untuk kita semua!', en: '' },
-  { t: 11.8, shot: 'kids', who: 'Anak-anak', ms: 'Ayah hero kami!', en: '' },
-  { t: 13.6, shot: 'follow', who: 'Anak-anak', ms: 'Bye ayah! Bawa balik banyak-banyak!', en: '', leave: true },
+  { t: 0, shot: 'wide', who: 'Anak-anak', ms: 'Ayah... kami lapar...', en: '', mood: { kids: 'sad', mak: 'sad', ayah: 'worried' } },
+  { t: 2.6, shot: 'kids', who: 'Anak-anak', ms: 'Dah tiga hari tak makan!', en: '', sob: true, mood: { kids: 'cry', mak: 'sad', ayah: 'sad' } },
+  { t: 5.0, shot: 'mak', who: 'Mak', ms: 'Hati-hati, bang. Manusia tu garang... si Oyen pun ada.', en: '', mood: { kids: 'worried', mak: 'worried', ayah: 'worried' } },
+  { t: 8.4, shot: 'ayah', who: 'Ayah', ms: 'Jangan risau. Ayah keluar cari makanan untuk kita semua!', en: '', mood: { kids: 'happy', mak: 'love', ayah: 'proud' } },
+  { t: 11.8, shot: 'kids', who: 'Anak-anak', ms: 'Ayah hero kami!', en: '', mood: { kids: 'excited', mak: 'love', ayah: 'proud' } },
+  { t: 13.6, shot: 'follow', who: 'Anak-anak', ms: 'Bye ayah! Bawa balik banyak-banyak!', en: '', leave: true, mood: { kids: 'excited', mak: 'worried', ayah: 'proud' } },
 ];
 const INTRO_SHORT = [
-  { t: 0, shot: 'mak', who: 'Mak', ms: 'Balik cepat ya, bang!', en: '' },
-  { t: 2.2, shot: 'ayah', who: 'Ayah', ms: 'InsyaAllah. Tunggu ayah balik!', en: '' },
-  { t: 4.4, shot: 'follow', who: 'Anak-anak', ms: 'Bye ayah!', en: '', leave: true },
+  { t: 0, shot: 'mak', who: 'Mak', ms: 'Balik cepat ya, bang!', en: '', mood: { kids: 'happy', mak: 'worried', ayah: 'happy' } },
+  { t: 2.2, shot: 'ayah', who: 'Ayah', ms: 'InsyaAllah. Tunggu ayah balik!', en: '', mood: { kids: 'happy', mak: 'love', ayah: 'proud' } },
+  { t: 4.4, shot: 'follow', who: 'Anak-anak', ms: 'Bye ayah!', en: '', leave: true, mood: { kids: 'excited', mak: 'love', ayah: 'proud' } },
 ];
 const OUTRO = [
-  { t: 0, shot: 'wide', who: 'Anak-anak', ms: 'Ayah dah balik!! Yeay!', en: '' },
-  { t: 2.4, shot: 'kids', who: 'Anak-anak', ms: 'Ayah bawa remah roti! Sedapnya!', en: '' },
-  { t: 4.6, shot: 'mak', who: 'Mak', ms: 'Alhamdulillah, abang selamat sampai.', en: '' },
-  { t: 6.9, shot: 'ayah', who: 'Ayah', ms: 'Untuk keluarga, ayah sanggup buat apa saja.', en: '' },
-  { t: 9.4, shot: 'wide', who: 'Mak', ms: 'Jom masuk, kita makan!', en: '' },
+  { t: 0, shot: 'wide', who: 'Anak-anak', ms: 'Ayah dah balik!! Yeay!', en: '', mood: { kids: 'excited', mak: 'shock', ayah: 'happy' } },
+  { t: 2.4, shot: 'kids', who: 'Anak-anak', ms: 'Ayah bawa remah roti! Sedapnya!', en: '', mood: { kids: 'excited', mak: 'happy', ayah: 'happy' } },
+  { t: 4.6, shot: 'mak', who: 'Mak', ms: 'Alhamdulillah, abang selamat sampai.', en: '', mood: { kids: 'happy', mak: 'joy', ayah: 'love' } },
+  { t: 6.9, shot: 'ayah', who: 'Ayah', ms: 'Untuk keluarga, ayah sanggup buat apa saja.', en: '', mood: { kids: 'love', mak: 'joy', ayah: 'proud' } },
+  { t: 9.4, shot: 'wide', who: 'Mak', ms: 'Jom masuk, kita makan!', en: '', mood: { kids: 'excited', mak: 'happy', ayah: 'happy' } },
 ];
+// Dad didn't make it: the family comes running and cries over him
+const DEATH = [
+  { t: 0, shot: 'dwide', who: 'Anak-anak', ms: 'AYAAAH!!', en: '', mood: { kids: 'shock', mak: 'shock', ayah: 'dead' } },
+  { t: 2.3, shot: 'mak', who: 'Mak', ms: 'Abang... bangunlah, bang...', en: '', sob: true, mood: { kids: 'cry', mak: 'cry', ayah: 'dead' } },
+  { t: 5.0, shot: 'kids', who: 'Anak-anak', ms: 'Ayah... jangan tinggalkan kami...', en: '', sob: true, mood: { kids: 'cry', mak: 'cry', ayah: 'dead' } },
+  { t: 7.6, shot: 'dhigh', who: 'Mak', ms: 'Kita takkan lupakan abang...', en: '', sob: true, mood: { kids: 'cry', mak: 'cry', ayah: 'dead' } },
+];
+function setFaces(on) { for (const m of [roach, ...family]) m.showFace(on); }
+let talkT = 0;
 const WIDE_SHOT = [new THREE.Vector3(20.1, 11.25, 16.3), new THREE.Vector3(20.4, 10.15, 19.2)];
 
 function showLine(l) {
@@ -485,9 +602,16 @@ function showLine(l) {
   $('cineBubble').classList.remove('bubblePop');
   void $('cineBubble').offsetWidth;
   $('cineBubble').classList.add('bubblePop');
-  // gibberish voice for the speaker
+  // gibberish voice for the speaker (or sobbing), and everyone's face for this line
   const voice = l.who === 'Anak-anak' ? 'kids' : l.who === 'Mak' ? 'mak' : 'ayah';
-  sfx.babble(voice, Math.min(2.4, 0.5 + l.ms.length * 0.045));
+  const dur = Math.min(2.4, 0.5 + l.ms.length * 0.045);
+  if (l.sob) { sfx.sob(voice, 2.4); if (voice !== 'kids' && cine.kind === 'death') sfx.sob('kids', 2.2); }
+  else sfx.babble(voice, dur);
+  talkT = dur;
+  const m = l.mood || {};
+  roach.setMood(m.ayah, voice === 'ayah');
+  wife.setMood(m.mak, voice === 'mak');
+  kids.forEach((k) => k.setMood(m.kids, voice === 'kids'));
 }
 
 // Camera for a shot. Close-ups sit in front of the speaker's face and slowly push in; every new line is a hard cut.
@@ -503,23 +627,38 @@ function shotCam(shot, lt, dt) {
     cam.target.lerp(new THREE.Vector3(roach.pos.x, roach.pos.y + 0.2, roach.pos.z - 2), 1 - Math.exp(-2.5 * dt));
   } else {
     let c, h, s;
+    if (shot === 'dwide' || shot === 'dhigh') {
+      // death scene: the family around Dad's body, seen from the side away from danger
+      const D = cine.death;
+      const push = Math.min(1, lt / 4);
+      const back = shot === 'dhigh' ? 1.6 : 2.3 - 0.4 * push, up = shot === 'dhigh' ? 1.9 + 0.3 * push : 0.75;
+      const want = D.body.clone().addScaledVector(D.side, back).addScaledVector(D.dir, 0.9).add(new THREE.Vector3(0, up, 0));
+      placeCam(D.body.clone().addScaledVector(D.dir, 0.4).add(new THREE.Vector3(0, 0.15, 0)), want);
+      camera.up.set(0, 1, 0);
+      camera.lookAt(cam.target);
+      return;
+    }
     if (shot === 'kids') {
       c = kids.reduce((a, k) => a.add(k.pos), new THREE.Vector3()).divideScalar(kids.length);
-      h = Math.PI;
-      s = 1.25;
+      h = kids[1].heading;
+      s = 0.85;
     } else {
       const who = shot === 'mak' ? wife : roach;
       c = who.pos.clone();
       h = who.heading;
-      s = 1;
+      s = 0.75;
     }
     const push = Math.min(1, lt / 3); // slow dolly-in
     const f = new THREE.Vector3(Math.sin(h), 0, Math.cos(h));
     const side = new THREE.Vector3(Math.cos(h), 0, -Math.sin(h));
     const dist = (1.1 - 0.3 * push) * s;
     const kid = shot === 'kids';
-    camera.position.copy(c).addScaledVector(f, kid ? dist * 0.8 : dist).addScaledVector(side, (kid ? 0.75 : 0.3) * s).add(new THREE.Vector3(0, (kid ? 0.5 : 0.3) * s + 0.05, 0));
-    cam.target.copy(c).addScaledVector(f, 0.12).add(new THREE.Vector3(0, shot === 'kids' ? 0.07 : 0.12, 0));
+    const want = kid
+      ? c.clone().addScaledVector(f, 0.95 - 0.2 * push).addScaledVector(side, -0.9).add(new THREE.Vector3(0, 0.3, 0)) // from the side, past Dad
+      : c.clone().addScaledVector(f, dist).addScaledVector(side, 0.3 * s).add(new THREE.Vector3(0, 0.3 * s + 0.05, 0));
+    const look = c.clone().addScaledVector(f, 0.12).add(new THREE.Vector3(0, shot === 'kids' ? 0.07 : 0.12, 0));
+    if (cine.kind === 'death') placeCam(look, want); // anywhere in the house: don't end up inside furniture
+    else { camera.position.copy(want); cam.target.copy(look); }
   }
   camera.up.set(0, 1, 0);
   camera.lookAt(cam.target);
@@ -538,6 +677,7 @@ function startIntro(full) {
   roach.setTie(true);
   placeFamily(false); // the family came out of the nest to say goodbye
   setFamilyVisible(true);
+  setFaces(true);
   ui.cine.classList.remove('hidden');
   $('cineSkip').classList.remove('hidden');
 }
@@ -559,6 +699,7 @@ function startOutro() {
   sfx.silence();
   document.exitPointerLock?.();
   roach.setTie(true);
+  setFaces(true);
   // the family comes out of the nest to meet him
   placeFamily(true);
   setFamilyVisible(true);
@@ -567,6 +708,98 @@ function startOutro() {
 
 function skipCine() {
   if (game.state === 'intro') { roach.pos.copy(DAD_OUT); roach.heading = Math.PI; startCountdown(); }
+  else if (game.state === 'death') finishDeath();
+}
+
+// Keep a cutscene camera out of walls and furniture (pull in towards the subject if something is in the way)
+function placeCam(look, want) {
+  const d = want.clone().sub(look);
+  const len = d.length();
+  d.normalize();
+  const hit = world.raySolids(look, d, len);
+  const p = look.clone().addScaledVector(d, hit < len ? Math.max(0.3, hit - 0.1) : len);
+  p.x = clampX(p.x, 0.15);
+  p.z = clampZ(p.z, 0.15);
+  p.y = clamp(p.y, 0.08, ROOM.height - 0.2);
+  camera.position.copy(p);
+  cam.target.copy(look);
+}
+
+// Dad died: the family rushes over from the safe side and cries around his body
+function startDeath() {
+  game.state = 'death';
+  cine.kind = 'death';
+  cine.lines = DEATH;
+  cine.end = 10.4;
+  cine.t = 0;
+  cine.line = -1;
+  const body = roach.pos.clone();
+  body.y = world.groundAt(body.x, body.z, body.y + 0.3);
+  // come from the side away from whoever did it (and from any wall)
+  const away = new THREE.Vector3(body.x - person.pos.x, 0, body.z - person.pos.z);
+  if (person.asleep || away.lengthSq() < 1) away.set(-body.x, 0, -body.z);
+  away.normalize();
+  let dir = away;
+  for (let k = 0; k < 8; k++) {
+    const a = Math.atan2(away.x, away.z) + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.6;
+    const d = new THREE.Vector3(Math.sin(a), 0, Math.cos(a));
+    const p = body.clone().addScaledVector(d, 1.2);
+    if (world.isFree(p.x, body.y + 0.1, p.z, 0.15) && Math.abs(p.x) < ROOM.hx - 0.5 && Math.abs(p.z) < ROOM.hz - 0.5) { dir = d; break; }
+  }
+  const side = new THREE.Vector3(dir.z, 0, -dir.x);
+  cine.death = { body, dir, side };
+  // spots in a little half-circle on that side, facing Dad
+  family.forEach((m, i) => {
+    const a = (i - 1.5) * 0.55;
+    const r = i === 0 ? 0.62 : 0.5 + (i % 2) * 0.12;
+    const spot = body.clone().addScaledVector(dir, Math.cos(a) * r).addScaledVector(side, Math.sin(a) * r);
+    m.deathSpot = spot;
+    m.pos.copy(body).addScaledVector(dir, 3.2 + i * 0.25).addScaledVector(side, Math.sin(a) * 1.2);
+    m.pos.y = body.y;
+    m.heading = Math.atan2(-dir.x, -dir.z);
+    m.orient(1);
+  });
+  setFamilyVisible(true);
+  setFaces(true);
+  roach.showFace(false); // he's belly-up
+  flashAmt = poisonAmt = 0;
+  for (const el of [ui.flash, ui.poison, ui.vignette]) el.style.opacity = 0;
+  ui.warn.classList.remove('show');
+  ui.hud.classList.add('hidden');
+  ui.touch.classList.add('hidden');
+  ui.cine.classList.remove('hidden');
+  $('cineSkip').classList.remove('hidden');
+  sfx.silence();
+  releaseTouch();
+  document.exitPointerLock?.();
+}
+
+function updateDeath(dt, time) {
+  const D = cine.death;
+  family.forEach((m, i) => {
+    const d = m.deathSpot.clone().sub(m.pos);
+    d.y = 0;
+    let walk = 0;
+    if (d.length() > 0.03 && cine.t > i * 0.15) {
+      m.heading = lerpAngle(m.heading, Math.atan2(d.x, d.z), 1 - Math.exp(-10 * dt));
+      m.pos.addScaledVector(d.normalize(), Math.min(d.length(), 2.6 * dt)); // running
+      walk = 2.4;
+    } else if (d.length() <= 0.03) {
+      const toBody = D.body.clone().sub(m.pos);
+      m.heading = lerpAngle(m.heading, Math.atan2(toBody.x, toBody.z), 1 - Math.exp(-6 * dt));
+    }
+    m.pos.y = D.body.y;
+    // sobbing bob once they've arrived
+    m.pose(dt, time, walk, walk ? 0 : Math.abs(Math.sin(time * 7 + i)) * 0.015);
+  });
+  if (cine.t >= cine.end) finishDeath();
+}
+
+function finishDeath() {
+  ui.cine.classList.add('hidden');
+  setFamilyVisible(false);
+  setFaces(false);
+  endGame(false);
 }
 
 function cineCam(pos, look, k) {
@@ -582,8 +815,10 @@ function updateCine(dt, time) {
   let li = 0;
   for (let i = 0; i < lines.length; i++) if (cine.t >= lines[i].t) li = i;
   if (li !== cine.line) { cine.line = li; showLine(lines[li]); }
+  talkT -= dt;
+  if (talkT <= 0) for (const m of [roach, ...family]) m.talking = false;
   const l = lines[li];
-  const first = cine.t - l.t < dt * 1.5 && li === 0;
+  if (cine.kind === 'death') { updateDeath(dt, time); if (game.state === 'death') shotCam(l.shot, cine.t - l.t, dt); return; }
   if (cine.kind === 'intro') {
     let walk = 0;
     if (l.leave) {
@@ -673,6 +908,7 @@ function startCountdown() {
   ui.hud.classList.remove('hidden');
   ui.countdown.classList.remove('hidden');
   setFamilyVisible(false); // they're back inside the nest
+  setFaces(false);
   roach.setTie(false); // the tie is just for the cutscenes
   countdown.t = 0;
   countdown.n = 4;
@@ -875,7 +1111,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && !e.repeat) jumpQueued = true;
   if (e.code === 'KeyP') togglePause();
   if (e.code === 'KeyV') toggleView();
-  if ((e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') && game.state === 'intro') skipCine();
+  if ((e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') && (game.state === 'intro' || game.state === 'death')) skipCine();
   if (e.code === 'Enter' && game.state === 'over') $('again').click();
   if (e.code === 'Escape' && (game.state === 'playing' || game.state === 'paused')) togglePause();
   keys.add(e.code);
@@ -1179,6 +1415,7 @@ function step(dt, time) {
     if (playing && c.position.distanceTo(roach.pos) < 0.45) {
       c.visible = false;
       game.crumbsEaten++;
+      game.lastFind = game.time;
       game.protein += 2;
       roach.health = Math.min(100, roach.health + 4);
       roach.stamina = Math.min(100, roach.stamina + 10);
@@ -1210,7 +1447,7 @@ function step(dt, time) {
 
   if (roach.dead && game.state === 'playing') {
     game.deathTimer -= dt;
-    if (game.deathTimer <= 0) endGame(false);
+    if (game.deathTimer <= 0) startDeath();
   }
 }
 
@@ -1228,13 +1465,98 @@ function stealthStatus() {
   return ['HIDDEN', '#2fbf4f', 0];
 }
 
+// ---------------------------------------------------------------- Minimap (round radar, turns with you)
+// Shows the furniture around you, the nest, the human and the cat. If you haven't found a crumb for a while,
+// the nearest crumbs appear as pulsing dots (pinned to the edge when they're further away).
+const mmCanvas = $('minimap');
+const mmCtx = mmCanvas.getContext('2d');
+const mmHint = $('mmHint');
+let mmT = 0;
+const HINT_AFTER = 20; // seconds without finding a crumb
+function drawMinimap(dt, clear) {
+  mmT -= dt;
+  if (mmT > 0) return;
+  mmT = 1 / 20;
+  const g = mmCtx, W = 256, R = 128, SPAN = 17; // world units from the centre to the edge
+  const k = R / SPAN;
+  const px = roach.pos.x, pz = roach.pos.z;
+  const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
+  const th = -Math.PI / 2 - Math.atan2(fz, fx); // turn the map so "forward" is up
+  const c = Math.cos(th), s = Math.sin(th);
+  const toMap = (x, z) => { const dx = x - px, dz = z - pz; return [(dx * c - dz * s) * k, (dx * s + dz * c) * k]; };
+  g.clearRect(0, 0, W, W);
+  g.save();
+  g.beginPath(); g.arc(R, R, R, 0, Math.PI * 2); g.clip();
+  g.fillStyle = 'rgba(28, 10, 58, 0.62)';
+  g.fillRect(0, 0, W, W);
+  g.translate(R, R);
+  g.save();
+  g.rotate(th);
+  g.scale(k, k);
+  g.translate(-px, -pz);
+  g.fillStyle = 'rgba(255,255,255,0.1)';
+  g.fillRect(-ROOM.hx, -ROOM.hz, ROOM.hx * 2, ROOM.hz * 2);
+  g.strokeStyle = 'rgba(255,255,255,0.85)';
+  g.lineWidth = 3 / k;
+  g.strokeRect(-ROOM.hx, -ROOM.hz, ROOM.hx * 2, ROOM.hz * 2);
+  g.fillStyle = 'rgba(200,180,255,0.35)';
+  for (const so of world.solids) {
+    if (so.maxY < 0.3 || so.minY > 6) continue;
+    const w = so.maxX - so.minX, d = so.maxZ - so.minZ;
+    if (w * d > 260 || w * d < 0.05) continue;
+    g.fillRect(so.minX, so.minZ, w, d);
+  }
+  g.restore();
+  const t = performance.now() / 1000;
+  const dot = (x, z, r, col, pin) => {
+    let [sx, sy] = toMap(x, z);
+    const d = Math.hypot(sx, sy), lim = R - r - 4;
+    if (d > lim) { if (!pin) return; sx *= lim / d; sy *= lim / d; }
+    g.fillStyle = col;
+    g.beginPath(); g.arc(sx, sy, r, 0, Math.PI * 2); g.fill();
+    return [sx, sy];
+  };
+  // nest: a little green house, pinned to the edge (and pulsing) once all crumbs are eaten
+  const nest = dot(NEST.x, NEST.z, clear ? 9 + Math.sin(t * 6) * 2 : 6, clear ? '#3dff6e' : 'rgba(61,255,110,0.6)', clear);
+  if (nest) { g.fillStyle = '#0b3d18'; g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('⌂', nest[0], nest[1] + 1); }
+  // the human (red) and the cat (orange) when they're near
+  if (!person.asleep) dot(person.pos.x, person.pos.z, 7, '#ff4d4d', false);
+  else dot(person.pos.x, person.pos.z, 7, 'rgba(120,140,255,0.8)', false);
+  if (cat.mode !== 'sleep') dot(cat.pos.x, cat.pos.z, 5, '#ff9f1c', false);
+  // crumb hints
+  const left = crumbs.filter((cr) => cr.visible);
+  const since = game.time - (game.lastFind || 0);
+  let show = 0;
+  if (!clear) show = left.length <= 3 ? left.length : since > HINT_AFTER * 2 ? 3 : since > HINT_AFTER ? 1 : 0;
+  mmHint.classList.toggle('hidden', show === 0 || game.state !== 'playing');
+  if (show) {
+    left.sort((a, b) => a.position.distanceToSquared(roach.pos) - b.position.distanceToSquared(roach.pos));
+    for (const cr of left.slice(0, show)) {
+      const pulse = 6 + Math.sin(t * 6) * 2;
+      const p = dot(cr.position.x, cr.position.z, pulse, '#ffd23a', true);
+      if (!p) continue;
+      g.strokeStyle = '#7a3d00'; g.lineWidth = 2;
+      g.beginPath(); g.arc(p[0], p[1], pulse, 0, Math.PI * 2); g.stroke();
+      // is it up high or down low compared to you?
+      const dy = cr.position.y - roach.pos.y;
+      if (Math.abs(dy) > 1.5) { g.fillStyle = '#fff'; g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.fillText(dy > 0 ? '▲' : '▼', p[0], p[1] - 12); }
+    }
+  }
+  // you: an arrow pointing the way you're facing
+  g.fillStyle = '#ffffff';
+  g.strokeStyle = '#4a1466';
+  g.lineWidth = 3;
+  g.beginPath(); g.moveTo(0, -11); g.lineTo(8, 8); g.lineTo(0, 4); g.lineTo(-8, 8); g.closePath(); g.stroke(); g.fill();
+  g.restore();
+}
+
 const angleDiff = (a, b) => ((((a - b + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) - Math.PI;
 function updateHud(dt) {
   ui.hp.style.width = `${roach.health}%`;
   ui.st.style.width = `${roach.stamina}%`;
   ui.time.textContent = `${Math.floor(game.time)}s`;
   const foodsDone = foods.items.filter((f) => f.remaining <= 0.01).length;
-  ui.crumbs.textContent = CRUMB_COUNT - game.crumbsEaten || '✓';
+  ui.crumbs.textContent = `${game.crumbsEaten}/${CRUMB_COUNT}`;
   ui.tileCrumbs.classList.toggle('done', game.crumbsEaten >= CRUMB_COUNT);
   const sc = score();
   if (sc !== lastScore) {
@@ -1259,22 +1581,8 @@ function updateHud(dt) {
     ? 'House cleared! Get back to your nest (green hole).'
     : `Find all the crumbs: ${CRUMB_COUNT - game.crumbsEaten} left · snacks refill your health`;
 
-  // Compass: points home once you're done, or at the nearest crumb when few remain
-  let target = null;
-  if (clear) target = { x: NEST.x, z: NEST.z };
-  else if (CRUMB_COUNT - game.crumbsEaten <= 5) {
-    let best = Infinity;
-    for (const c of crumbs) {
-      if (!c.visible) continue;
-      const d = c.position.distanceTo(roach.pos);
-      if (d < best) { best = d; target = c.position; }
-    }
-  }
-  ui.compass.classList.toggle('hidden', !target || game.state !== 'playing');
-  if (target) {
-    const rel = angleDiff(Math.atan2(target.x - roach.pos.x, target.z - roach.pos.z), cam.yaw + Math.PI);
-    ui.compass.style.transform = `rotate(${(-rel * 180) / Math.PI}deg)`;
-  }
+  ui.compass.classList.add('hidden'); // replaced by the minimap
+  drawMinimap(dt, clear);
 
   if (nearFood) {
     ui.prompt.textContent = `${isTouch ? 'Hold EAT' : 'Hold E'} to eat ${nearFood.name} (+health) · munching is noisy!`;
@@ -1295,6 +1603,7 @@ function updateHud(dt) {
   ui.poison.style.opacity = poisonAmt;
 }
 
+applyLevel();
 resetGame();
 let last = performance.now();
 function frame(now) {
@@ -1302,6 +1611,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   autoResolution(dt);
+  if (window.__peek) { renderer.render(scene, camera); return; } // testing: frozen camera
   tick(dt, now / 1000);
   render(now / 1000);
 }
@@ -1310,11 +1620,14 @@ requestAnimationFrame(frame);
 // One step of the whole game (menus, cutscenes, countdown, gameplay)
 function tick(dt, time) {
   for (const f of world.fans) f.obj.rotation[f.axis] += f.speed * dt;
+  updateTV(dt);
   const s = game.state;
   if (s === 'playing' || s === 'over') {
     step(dt, time);
     updateHud(dt);
     updateCamera(dt);
+  } else if (s === 'death') {
+    updateCine(dt, time); // the house holds its breath
   } else if (s === 'intro' || s === 'outro') {
     ambient(dt, time);
     updateCine(dt, time); // the cutscene drives the camera
@@ -1364,7 +1677,9 @@ window.__game = {
     return game.state;
   },
   beginLevel: (i, quick) => beginLevel(i, quick),
-  renderer, scene, sun,
+  renderer, scene, sun, camera,
+  // look at the room from any point (testing)
+  peek(pos, look) { camera.position.set(...pos); camera.up.set(0, 1, 0); camera.lookAt(...look); renderer.render(scene, camera); },
   simulate(seconds) {
     for (let i = 0; i < Math.round(seconds * 60); i++) {
       simTime += 1 / 60;
